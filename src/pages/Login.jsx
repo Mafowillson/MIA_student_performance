@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, Globe2, Layers, BookOpen, Building2, Users } from 'lucide-react';
+import { AlertCircle, Landmark, Globe2, Layers, BookOpen, Building2, Users } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useRole, ROLES } from '../context/RoleContext';
-import { useDemoAccounts, useStudents } from '../hooks';
+import { useDemoAccounts, useShareableStudents } from '../hooks';
 import * as api from '../data/api';
 import LanguageToggle from '../components/LanguageToggle';
 
 const ROLE_META = [
+  { role: ROLES.NATIONAL_SUPERVISOR, key: 'national_supervisor', color: 'var(--role-national)', Icon: Landmark },
   { role: ROLES.REGIONAL_SUPERVISOR, key: 'regional_supervisor', color: 'var(--role-supervisor)', Icon: Globe2 },
   { role: ROLES.REGIONAL_COORDINATOR, key: 'regional_coordinator', color: 'var(--role-coordinator)', Icon: Layers },
   { role: ROLES.HOD, key: 'hod', color: 'var(--role-hod)', Icon: BookOpen },
@@ -16,6 +17,7 @@ const ROLE_META = [
 ];
 
 const DASHBOARD_ROUTE_BY_ROLE = {
+  [ROLES.NATIONAL_SUPERVISOR]: '/national',
   [ROLES.REGIONAL_SUPERVISOR]: '/supervisor',
   [ROLES.REGIONAL_COORDINATOR]: '/coordinator',
   [ROLES.HOD]: '/hod',
@@ -36,7 +38,7 @@ export default function Login() {
 
   const { data: demo } = useDemoAccounts();
   const [shareStudentId, setShareStudentId] = useState('');
-  const { data: students } = useStudents();
+  const { data: students } = useShareableStudents();
 
   async function performLogin(emailValue, passwordValue) {
     setError('');

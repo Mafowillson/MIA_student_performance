@@ -1,13 +1,19 @@
 import { Navigate } from 'react-router-dom';
 import { useRole } from '../../context/RoleContext';
+import Loading from '../Loading';
 
-// Guards a role-scoped route. There's no real auth in this mock-data phase —
-// this just keeps navigation consistent with the selected demo role so you
-// can't land on e.g. /center without having picked "Center Coordinator" first.
+// Guards a role-scoped platform route — redirects to the login screen if
+// you're not signed in, or signed in as a role that doesn't hold this route
+// (e.g. a Mentor hitting /center directly). This is a UX convenience, not a
+// security boundary; see README "Authentication" for the real-auth plan.
 export default function ProtectedRoute({ allow, children }) {
-  const { role } = useRole();
+  const { role, loading } = useRole();
+  // While RoleProvider is still restoring the Supabase session on first
+  // load/refresh, `role` is momentarily null even for a signed-in user —
+  // wait for that to settle instead of bouncing straight to /login.
+  if (loading) return <Loading />;
   if (!role || !allow.includes(role)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
   return children;
 }

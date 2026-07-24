@@ -1,7 +1,7 @@
 // Deterministic mock dataset for the MIA NW Student Performance Platform.
 // This is the ONLY file that hardcodes data. Everything else (components, pages)
 // must go through src/data/api.js — never import this file directly outside src/data/.
-import { mulberry32, randInt, randFloat, pick, shuffle } from './random';
+import { mulberry32, randInt, randFloat, pick, shuffle } from './random.js';
 import { ROLES } from '../constants/roles';
 
 const rng = mulberry32(20260705);
@@ -20,11 +20,30 @@ export const CURRENT_WEEK = 7;
 export const CURRENT_WEEK_DATE = new Date(2026, 6, 6).toISOString().slice(0, 10);
 
 // ---------------------------------------------------------------------------
-// Categories & Subjects
+// Regions — MIA Prepa runs (or will run) in multiple regions. NW and SW are
+// fully populated; Center and Littoral are registered but not yet staffed
+// (no Regional Supervisor, no centers) — a live demo of the National
+// Supervisor onboarding a new region rather than a hardcoded empty state.
+// ---------------------------------------------------------------------------
+export const REGIONS = [
+  { id: 'region-nw', name: 'North West' },
+  { id: 'region-sw', name: 'South West' },
+  { id: 'region-center', name: 'Center' },
+  { id: 'region-littoral', name: 'Littoral' },
+];
+
+// ---------------------------------------------------------------------------
+// Categories & Subjects — a Category belongs to exactly one Region, so two
+// regions can each run their own "Engineering" as fully separate records
+// (own subjects, own HODs) — the same pattern already used for HODs being
+// distinct per category even when the subject name repeats (e.g. "Math").
 // ---------------------------------------------------------------------------
 export const CATEGORIES = [
-  { id: 'cat-eng', name: 'Engineering' },
-  { id: 'cat-med', name: 'Medicine' },
+  { id: 'cat-eng', name: 'Engineering', regionId: 'region-nw' },
+  { id: 'cat-med', name: 'Medicine', regionId: 'region-nw' },
+  { id: 'cat-eng-sw', name: 'Engineering', regionId: 'region-sw' },
+  { id: 'cat-med-sw', name: 'Medicine', regionId: 'region-sw' },
+  { id: 'cat-tech-sw', name: 'Technical', regionId: 'region-sw' },
 ];
 
 export const HODS = [
@@ -36,6 +55,12 @@ export const HODS = [
   { id: 'hod-6', name: 'Dr. Ndi Comfort' },
   { id: 'hod-7', name: 'Dr. Ashu Derick' },
   { id: 'hod-8', name: 'Dr. Fru Linda' },
+  { id: 'hod-9', name: 'Dr. Ekema Divine' },
+  { id: 'hod-10', name: 'Dr. Molua Grace' },
+  { id: 'hod-11', name: 'Dr. Epie Samuel' },
+  { id: 'hod-12', name: 'Dr. Liwa Comfort' },
+  { id: 'hod-13', name: 'Dr. Ntoko Bernard' },
+  { id: 'hod-14', name: 'Dr. Mbua Irene' },
 ];
 
 export const SUBJECTS = [
@@ -47,44 +72,69 @@ export const SUBJECTS = [
   { id: 'sub-med-bio', name: 'Biology', categoryId: 'cat-med', hodId: 'hod-6' },
   { id: 'sub-med-chem', name: 'Chemistry', categoryId: 'cat-med', hodId: 'hod-7' },
   { id: 'sub-med-math', name: 'Math', categoryId: 'cat-med', hodId: 'hod-8' },
+  // South West
+  { id: 'sub-sw-eng-math', name: 'Math', categoryId: 'cat-eng-sw', hodId: 'hod-9' },
+  { id: 'sub-sw-eng-circuit', name: 'Circuit Design', categoryId: 'cat-eng-sw', hodId: 'hod-10' },
+  { id: 'sub-sw-med-anat', name: 'Anatomy', categoryId: 'cat-med-sw', hodId: 'hod-11' },
+  { id: 'sub-sw-med-bio', name: 'Biology', categoryId: 'cat-med-sw', hodId: 'hod-12' },
+  { id: 'sub-sw-tech-weld', name: 'Welding', categoryId: 'cat-tech-sw', hodId: 'hod-13' },
+  { id: 'sub-sw-tech-elec', name: 'Electrical Installation', categoryId: 'cat-tech-sw', hodId: 'hod-14' },
 ];
 
 // ---------------------------------------------------------------------------
 // Centers
 // ---------------------------------------------------------------------------
 export const CENTERS = [
-  { id: 'center-bamenda', name: 'Bamenda Center', location: 'Bamenda, NW' },
-  { id: 'center-bafut', name: 'Bafut Center', location: 'Bafut, NW' },
-  { id: 'center-kumbo', name: 'Kumbo Center', location: 'Kumbo, NW' },
+  { id: 'center-bamenda', name: 'Bamenda Center', location: 'Bamenda, NW', regionId: 'region-nw' },
+  { id: 'center-bafut', name: 'Bafut Center', location: 'Bafut, NW', regionId: 'region-nw' },
+  { id: 'center-kumbo', name: 'Kumbo Center', location: 'Kumbo, NW', regionId: 'region-nw' },
+  { id: 'center-buea', name: 'Buea Center', location: 'Buea, SW', regionId: 'region-sw' },
+  { id: 'center-limbe', name: 'Limbe Center', location: 'Limbe, SW', regionId: 'region-sw' },
 ];
 
 // ---------------------------------------------------------------------------
-// People: Regional Supervisor, Regional Coordinators, Center Coordinators, Mentors
+// People: National Supervisor, Regional Supervisors, Regional Coordinators,
+// Center Coordinators, Mentors
 // ---------------------------------------------------------------------------
-export const REGIONAL_SUPERVISOR = { id: 'rs-1', name: 'Emmanuel Fonkeng' };
+export const NATIONAL_SUPERVISOR = { id: 'ns-1', name: 'Prisca Achale' };
+
+// One per staffed region — Center and Littoral intentionally have none yet.
+export const REGIONAL_SUPERVISORS = [
+  { id: 'rs-nw', name: 'Emmanuel Fonkeng', regionId: 'region-nw' },
+  { id: 'rs-sw', name: 'Genevieve Mbah', regionId: 'region-sw' },
+];
 
 export const REGIONAL_COORDINATORS = [
   { id: 'rc-eng', name: 'Samuel Nkemtaji', categoryId: 'cat-eng' },
   { id: 'rc-med', name: 'Delphine Ayuk', categoryId: 'cat-med' },
+  { id: 'rc-eng-sw', name: 'Roland Ekedi', categoryId: 'cat-eng-sw' },
+  { id: 'rc-med-sw', name: 'Comfort Njie', categoryId: 'cat-med-sw' },
+  { id: 'rc-tech-sw', name: 'Peter Ebune', categoryId: 'cat-tech-sw' },
 ];
 
 export const CENTER_COORDINATORS = [
   { id: 'cc-bamenda', name: 'Beatrice Neba', centerId: 'center-bamenda' },
   { id: 'cc-bafut', name: 'Martin Achiri', centerId: 'center-bafut' },
   { id: 'cc-kumbo', name: 'Gwendoline Shey', centerId: 'center-kumbo' },
+  { id: 'cc-buea', name: 'Dorothy Ekane', centerId: 'center-buea' },
+  { id: 'cc-limbe', name: 'Francis Motanga', centerId: 'center-limbe' },
 ];
 
 // centerId here is the mentor's "home center" — whichever Center Coordinator
 // manages (created/edits/removes) that mentor's account. It is independent
 // of the centers their mentees belong to: a mentor's mentee group can still
-// span multiple centers and categories (confirmed in the spec), but the
-// mentor account itself is owned by exactly one center coordinator.
+// span multiple centers and categories within the SAME region (mentors do
+// not cross regions — see buildStudentGroups/mentor-pool assignment below).
 export const MENTORS = [
   { id: 'mentor-1', name: 'Ngozi Achidi', centerId: 'center-bamenda' },
   { id: 'mentor-2', name: 'Divine Tabe', centerId: 'center-bafut' },
   { id: 'mentor-3', name: 'Larissa Mbeng', centerId: 'center-bamenda' },
   { id: 'mentor-4', name: 'Kelvin Ashu', centerId: 'center-kumbo' },
   { id: 'mentor-5', name: 'Precious Nkeng', centerId: 'center-bafut' },
+  { id: 'mentor-6', name: 'Solange Etonde', centerId: 'center-buea' },
+  { id: 'mentor-7', name: 'Ebot Willy', centerId: 'center-limbe' },
+  { id: 'mentor-8', name: 'Agnes Mokake', centerId: 'center-buea' },
+  { id: 'mentor-9', name: 'Julius Ndive', centerId: 'center-limbe' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -125,11 +175,16 @@ function buildHeadlineArchetypeList(count, rngLocal) {
   return shuffle(rngLocal, list);
 }
 
-function buildStudentGroups(rngLocal) {
+function buildStudentGroups() {
   const groups = [];
   for (const center of CENTERS) {
     for (const category of CATEGORIES) {
-      groups.push({ center, category });
+      // A center only hosts categories that belong to its own region — this
+      // is what keeps SW's "Technical" category (for example) from ever
+      // pairing with an NW center once both regions share these arrays.
+      if (center.regionId === category.regionId) {
+        groups.push({ center, category });
+      }
     }
   }
   return groups;
@@ -152,18 +207,34 @@ const STUDENT_ARCHETYPES = {}; // studentId -> { subjectId: archetype }
 const INCOMPLETE_STUDENT_IDS = new Set();
 
 {
-  const groups = buildStudentGroups(rng);
+  const groups = buildStudentGroups();
   let studentCounter = 1;
-  const mentorPool = shuffle(rng, MENTORS.map((m) => m.id));
-  let mentorCursor = 0;
+
+  // Mentors don't cross regions (their own Regional Supervisor differs), so
+  // each region gets its own shuffled mentor pool + cursor rather than one
+  // global pool that could hand an NW student an SW-based mentor.
+  const mentorPoolByRegion = {};
+  const mentorCursorByRegion = {};
+  REGIONS.forEach((region) => {
+    const regionMentorIds = MENTORS.filter((m) => {
+      const home = CENTERS.find((c) => c.id === m.centerId);
+      return home?.regionId === region.id;
+    }).map((m) => m.id);
+    mentorPoolByRegion[region.id] = shuffle(rng, regionMentorIds);
+    mentorCursorByRegion[region.id] = 0;
+  });
 
   groups.forEach(({ center, category }, groupIdx) => {
-    // 4-5 students per center/category group -> ~27-30 total
+    // 4-5 students per center/category group -> ~27-30 students per region
     const count = groupIdx % 2 === 0 ? 5 : 4;
+    const regionId = category.regionId;
+    const mentorPool = mentorPoolByRegion[regionId];
     for (let i = 0; i < count; i += 1) {
       const id = `stu-${String(studentCounter).padStart(3, '0')}`;
-      const mentorId = mentorPool[mentorCursor % mentorPool.length];
-      mentorCursor += 1;
+      const mentorId = mentorPool.length
+        ? mentorPool[mentorCursorByRegion[regionId] % mentorPool.length]
+        : null;
+      mentorCursorByRegion[regionId] += 1;
       const enrollmentDate = `2025-09-${String(randInt(rng, 1, 15)).padStart(2, '0')}`;
       STUDENTS.push({
         id,
@@ -182,7 +253,23 @@ const INCOMPLETE_STUDENT_IDS = new Set();
 
 // Assign a per-subject archetype to every student (for subjects in their category),
 // weighted so "steady" is most common but every archetype shows up multiple times.
-const HEADLINE_ARCHETYPES = buildHeadlineArchetypeList(STUDENTS.length, rng);
+// Computed per-region rather than once over the combined population — with
+// two (or more) regions of similar size, a single shuffle over everyone can
+// easily hand one region a disproportionate share of "bad" archetypes by
+// chance, undermining the demo's "most students are fine, some clearly
+// aren't" story region by region.
+const HEADLINE_ARCHETYPES = new Array(STUDENTS.length);
+REGIONS.forEach((region) => {
+  const indices = [];
+  STUDENTS.forEach((s, idx) => {
+    const category = CATEGORIES.find((c) => c.id === s.categoryId);
+    if (category?.regionId === region.id) indices.push(idx);
+  });
+  const regionArchetypes = buildHeadlineArchetypeList(indices.length, rng);
+  indices.forEach((idx, i) => {
+    HEADLINE_ARCHETYPES[idx] = regionArchetypes[i];
+  });
+});
 
 STUDENTS.forEach((student, idx) => {
   const subjects = SUBJECTS.filter((s) => s.categoryId === student.categoryId);
@@ -205,11 +292,17 @@ STUDENTS.forEach((student, idx) => {
   STUDENT_ARCHETYPES[student.id] = archetypeForStudent;
 });
 
-// Pick a handful of students to also carry an "incomplete data" gap in one subject.
-{
-  const candidates = shuffle(rng, STUDENTS.map((s) => s.id)).slice(0, 4);
+// Pick a handful of students per region to also carry an "incomplete data"
+// gap in one subject — sampled per-region (not once globally) so every
+// region gets real examples rather than leaving it to chance.
+REGIONS.forEach((region) => {
+  const regionStudentIds = STUDENTS.filter((s) => {
+    const category = CATEGORIES.find((c) => c.id === s.categoryId);
+    return category?.regionId === region.id;
+  }).map((s) => s.id);
+  const candidates = shuffle(rng, regionStudentIds).slice(0, 4);
   candidates.forEach((id) => INCOMPLETE_STUDENT_IDS.add(id));
-}
+});
 
 // ---------------------------------------------------------------------------
 // Assessments (one per subject/week) & Scores
@@ -236,7 +329,12 @@ function generateSeries(archetype, weeks, rngLocal) {
   let base;
   switch (archetype) {
     case 'improving':
-      base = randFloat(rngLocal, 42, 52);
+      // Starting comfortably above the 50% line (not just above the
+      // eventual average) matters here: a slow start below 50% for its
+      // first two weeks would trip the *separate* "sustained low" flag on a
+      // student who is, in fact, trending upward — undermining the whole
+      // point of this archetype existing.
+      base = randFloat(rngLocal, 50, 58);
       for (let w = 0; w < weeks.length; w += 1) {
         out.push(clampPct(base + w * randFloat(rngLocal, 5, 8) + randFloat(rngLocal, -3, 3)));
       }
@@ -297,10 +395,11 @@ STUDENTS.forEach((student) => {
       missingWeeks = new Set([WEEKS[WEEKS.length - 2].week, WEEKS[WEEKS.length - 1].week]);
     }
 
-    // Simulate one center being late on one subject's most recent week
-    // (drives the Regional Supervisor / Coordinator "late entry" panels).
+    // Simulate one center per region being late on one subject's most recent
+    // week (drives the Regional/National Supervisor "late entry" panels).
     const isLateCenterSubject =
-      student.centerId === 'center-kumbo' && subject.id === 'sub-eng-circuit';
+      (student.centerId === 'center-kumbo' && subject.id === 'sub-eng-circuit') ||
+      (student.centerId === 'center-buea' && subject.id === 'sub-sw-eng-circuit');
     if (isLateCenterSubject) {
       missingWeeks.add(WEEKS[WEEKS.length - 1].week);
     }
@@ -350,6 +449,13 @@ export const FOLLOW_UP_NOTES = [
     date: '2026-06-29',
     note: 'Great improvement this term — praised the student and encouraged them to keep up the current study group routine.',
   },
+  {
+    id: 'note-4',
+    studentId: STUDENTS[30]?.id,
+    mentorId: STUDENTS[30]?.mentorId,
+    date: '2026-06-24',
+    note: 'Checked in on the Technical track workload — student is adjusting well to the new center.',
+  },
 ];
 
 export const OUTCOMES = [
@@ -370,6 +476,15 @@ export const OUTCOMES = [
     date: '2026-05-15',
     note: 'Awarded a partial scholarship via the Open Dreams partnership.',
     recordedBy: STUDENTS[20]?.mentorId,
+  },
+  {
+    id: 'outcome-3',
+    studentId: STUDENTS[35]?.id,
+    outcomeType: 'University Admission',
+    institutionOrProgram: 'University of Buea — Medicine',
+    date: '2026-05-20',
+    note: 'Admitted into the Faculty of Health Sciences after completing the Prepa program.',
+    recordedBy: STUDENTS[35]?.mentorId,
   },
 ];
 
@@ -398,30 +513,50 @@ function emailFor(name) {
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z]+/g, '.')
     .replace(/^\.+|\.+$/g, '');
-  return `${slug}@mia-nw.org`;
+  // National domain now that the platform spans multiple regions, not just NW.
+  return `${slug}@mia-prepa.org`;
 }
 
 export const USERS = [
   {
-    id: `user-${REGIONAL_SUPERVISOR.id}`,
-    name: REGIONAL_SUPERVISOR.name,
-    email: emailFor(REGIONAL_SUPERVISOR.name),
+    id: `user-${NATIONAL_SUPERVISOR.id}`,
+    name: NATIONAL_SUPERVISOR.name,
+    email: emailFor(NATIONAL_SUPERVISOR.name),
+    password: DEMO_PASSWORD,
+    role: ROLES.NATIONAL_SUPERVISOR,
+    refId: NATIONAL_SUPERVISOR.id,
+    contextLabel: 'All regions',
+  },
+  ...REGIONAL_SUPERVISORS.map((rs) => ({
+    id: `user-${rs.id}`,
+    name: rs.name,
+    email: emailFor(rs.name),
     password: DEMO_PASSWORD,
     role: ROLES.REGIONAL_SUPERVISOR,
-    refId: REGIONAL_SUPERVISOR.id,
-    contextLabel: 'Regional Supervisor',
-  },
-  ...REGIONAL_COORDINATORS.map((c) => ({
-    id: `user-${c.id}`,
-    name: c.name,
-    email: emailFor(c.name),
-    password: DEMO_PASSWORD,
-    role: ROLES.REGIONAL_COORDINATOR,
-    refId: c.id,
-    contextLabel: CATEGORIES.find((cat) => cat.id === c.categoryId)?.name ?? '',
+    refId: rs.id,
+    contextLabel: REGIONS.find((r) => r.id === rs.regionId)?.name ?? '',
   })),
+  ...REGIONAL_COORDINATORS.map((c) => {
+    const category = CATEGORIES.find((cat) => cat.id === c.categoryId);
+    const region = REGIONS.find((r) => r.id === category?.regionId);
+    return {
+      id: `user-${c.id}`,
+      name: c.name,
+      email: emailFor(c.name),
+      password: DEMO_PASSWORD,
+      role: ROLES.REGIONAL_COORDINATOR,
+      refId: c.id,
+      // Category names repeat across regions (each region has its own
+      // "Engineering", say) so disambiguate in the one place — the login
+      // screen's demo-accounts list — where accounts from every region and
+      // category sit side by side.
+      contextLabel: category ? `${category.name} (${region?.name ?? ''})` : '',
+    };
+  }),
   ...HODS.map((h) => {
     const subject = SUBJECTS.find((s) => s.hodId === h.id);
+    const category = CATEGORIES.find((cat) => cat.id === subject?.categoryId);
+    const region = REGIONS.find((r) => r.id === category?.regionId);
     return {
       id: `user-${h.id}`,
       name: h.name,
@@ -429,7 +564,7 @@ export const USERS = [
       password: DEMO_PASSWORD,
       role: ROLES.HOD,
       refId: h.id,
-      contextLabel: subject?.name ?? '',
+      contextLabel: subject ? `${subject.name} (${region?.name ?? ''})` : '',
     };
   }),
   ...CENTER_COORDINATORS.map((c) => ({

@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { useRole, ROLES } from '../../context/RoleContext';
 import { useCategories, useStudentsWithStatus, useCategorySummary } from '../../hooks';
 import RosterTable from '../../components/RosterTable';
 import StatCard from '../../components/StatCard';
@@ -7,7 +8,8 @@ import Loading from '../../components/Loading';
 
 export default function CategoryDrillDown() {
   const { t } = useLanguage();
-  const { categoryId } = useParams();
+  const { categoryId, regionId } = useParams();
+  const { role } = useRole();
   const navigate = useNavigate();
 
   const { data: categories, loading: catLoading } = useCategories();
@@ -17,9 +19,11 @@ export default function CategoryDrillDown() {
   if (catLoading || summaryLoading || rosterLoading) return <Loading />;
   const category = categories.find((c) => c.id === categoryId);
 
+  const backTo = role === ROLES.NATIONAL_SUPERVISOR ? `/national/region/${regionId}` : '/supervisor';
+
   return (
     <div className="stack">
-      <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => navigate('/supervisor')}>
+      <button type="button" className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => navigate(backTo)}>
         ← {t('nav.backToDashboard')}
       </button>
       <h1>{category?.name}</h1>

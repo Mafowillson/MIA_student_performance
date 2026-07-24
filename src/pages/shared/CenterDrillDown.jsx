@@ -7,7 +7,7 @@ import Loading from '../../components/Loading';
 
 export default function CenterDrillDown() {
   const { t } = useLanguage();
-  const { centerId } = useParams();
+  const { centerId, regionId } = useParams();
   const { role, actor } = useRole();
   const navigate = useNavigate();
 
@@ -20,7 +20,9 @@ export default function CenterDrillDown() {
 
   if (centerLoading || rosterLoading) return <Loading />;
 
-  const backTo = role === ROLES.REGIONAL_COORDINATOR ? '/coordinator' : '/supervisor';
+  let backTo = '/supervisor';
+  if (role === ROLES.REGIONAL_COORDINATOR) backTo = '/coordinator';
+  else if (role === ROLES.NATIONAL_SUPERVISOR) backTo = `/national/region/${regionId}`;
 
   return (
     <div className="stack">

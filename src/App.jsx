@@ -3,12 +3,22 @@ import { LanguageProvider } from './i18n/LanguageContext';
 import { RoleProvider, ROLES } from './context/RoleContext';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import AppShell from './components/layout/AppShell';
+import PublicLayout from './components/layout/PublicLayout';
+
+import Home from './pages/public/Home';
+import About from './pages/public/About';
+import Programs from './pages/public/Programs';
+import Contact from './pages/public/Contact';
 
 import Login from './pages/Login';
 import SharedStudentView from './pages/SharedStudentView';
 
+import NationalSupervisorDashboard from './pages/national/NationalSupervisorDashboard';
+import ManageRegionalSupervisors from './pages/national/ManageRegionalSupervisors';
+import ManageRegions from './pages/national/ManageRegions';
 import RegionalSupervisorDashboard from './pages/supervisor/RegionalSupervisorDashboard';
 import ManageAdmins from './pages/supervisor/ManageAdmins';
+import ManageCenters from './pages/supervisor/ManageCenters';
 import RegionalCoordinatorDashboard from './pages/coordinator/RegionalCoordinatorDashboard';
 import HODDashboard from './pages/hod/HODDashboard';
 import CenterCoordinatorDashboard from './pages/center/CenterCoordinatorDashboard';
@@ -30,10 +40,66 @@ export default function App() {
       <RoleProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Login />} />
+            <Route element={<PublicLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/programs" element={<Programs />} />
+              <Route path="/contact" element={<Contact />} />
+            </Route>
+
+            <Route path="/login" element={<Login />} />
             <Route path="/share/:studentId" element={<SharedStudentView />} />
 
             <Route element={<AppShell />}>
+              <Route
+                path="/national"
+                element={
+                  <ProtectedRoute allow={[ROLES.NATIONAL_SUPERVISOR]}>
+                    <NationalSupervisorDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/national/admins"
+                element={
+                  <ProtectedRoute allow={[ROLES.NATIONAL_SUPERVISOR]}>
+                    <ManageRegionalSupervisors />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/national/regions"
+                element={
+                  <ProtectedRoute allow={[ROLES.NATIONAL_SUPERVISOR]}>
+                    <ManageRegions />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/national/region/:regionId"
+                element={
+                  <ProtectedRoute allow={[ROLES.NATIONAL_SUPERVISOR]}>
+                    <RegionalSupervisorDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/national/region/:regionId/center/:centerId"
+                element={
+                  <ProtectedRoute allow={[ROLES.NATIONAL_SUPERVISOR]}>
+                    <CenterDrillDown />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/national/region/:regionId/category/:categoryId"
+                element={
+                  <ProtectedRoute allow={[ROLES.NATIONAL_SUPERVISOR]}>
+                    <CategoryDrillDown />
+                  </ProtectedRoute>
+                }
+              />
+
               <Route
                 path="/supervisor"
                 element={
@@ -63,6 +129,14 @@ export default function App() {
                 element={
                   <ProtectedRoute allow={[ROLES.REGIONAL_SUPERVISOR]}>
                     <ManageAdmins />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/supervisor/centers"
+                element={
+                  <ProtectedRoute allow={[ROLES.REGIONAL_SUPERVISOR]}>
+                    <ManageCenters />
                   </ProtectedRoute>
                 }
               />

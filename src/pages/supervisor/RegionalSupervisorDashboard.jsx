@@ -1,21 +1,45 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { useRegionalSummary } from '../../hooks';
+import { useRole } from '../../context/RoleContext';
+import { useRegionalSummary, useRegion } from '../../hooks';
 import StatCard from '../../components/StatCard';
 import Loading from '../../components/Loading';
 
+// Serves two callers: the Regional Supervisor's own dashboard (/supervisor,
+// region taken from their actor) and the National Supervisor's drill-in
+// (/national/region/:regionId, region taken from the route) — same data,
+// same screen, so the two views can never drift apart.
 export default function RegionalSupervisorDashboard() {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const { data, loading } = useRegionalSummary();
+  const { regionId: regionIdParam } = useParams();
+  const { actor } = useRole();
+  const regionId = regionIdParam || actor?.regionId;
+  const isNationalDrillIn = !!regionIdParam;
 
-  if (loading) return <Loading />;
+  const { data, loading } = useRegionalSummary(regionId);
+  const { data: region, loading: regionLoading } = useRegion(regionId);
+
+  if (loading || regionLoading) return <Loading />;
+
+  const basePath = isNationalDrillIn ? `/national/region/${regionId}` : '/supervisor';
 
   return (
     <div className="stack">
+      {isNationalDrillIn && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          style={{ alignSelf: 'flex-start' }}
+          onClick={() => navigate('/national')}
+        >
+          ← {t('national.backToNational')}
+        </button>
+      )}
+
       <div>
-        <h1>{t('supervisor.title')}</h1>
-        <p className="muted">{t('supervisor.summary')}</p>
+        <h1>{t('supervisor.title', { region: region?.name ?? '' })}</h1>
+        <p className="muted">{t('supervisor.summary', { region: region?.name ?? '' })}</p>
       </div>
 
       <div className="grid">
@@ -59,72 +83,80 @@ export default function RegionalSupervisorDashboard() {
 
       <div className="card">
         <h2 className="mt-0">{t('supervisor.byCenter')}</h2>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{t('common.center')}</th>
-                <th>{t('common.students')}</th>
-                <th>{t('supervisor.atRisk')}</th>
-                <th>{t('supervisor.incomplete')}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {data.perCenter.map((row) => (
-                <tr key={row.center.id}>
-                  <td>{row.center.name}</td>
-                  <td>{row.studentCount}</td>
-                  <td>{row.atRisk}</td>
-                  <td>{row.incomplete}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => navigate(`/supervisor/center/${row.center.id}`)}
-                    >
-                      {t('supervisor.drillIn')}
-                    </button>
-                  </td>
+        {data.perCenter.length === 0 ? (
+          <p className="muted small">{t('common.noData')}</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{t('common.center')}</th>
+                  <th>{t('common.students')}</th>
+                  <th>{t('supervisor.atRisk')}</th>
+                  <th>{t('supervisor.incomplete')}</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {data.perCenter.map((row) => (
+                  <tr key={row.center.id}>
+                    <td>{row.center.name}</td>
+                    <td>{row.studentCount}</td>
+                    <td>{row.atRisk}</td>
+                    <td>{row.incomplete}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => navigate(`${basePath}/center/${row.center.id}`)}
+                      >
+                        {t('supervisor.drillIn')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="card">
         <h2 className="mt-0">{t('supervisor.byCategory')}</h2>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{t('common.category')}</th>
-                <th>{t('common.students')}</th>
-                <th>{t('supervisor.atRisk')}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {data.perCategory.map((row) => (
-                <tr key={row.category.id}>
-                  <td>{row.category.name}</td>
-                  <td>{row.studentCount}</td>
-                  <td>{row.atRisk}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => navigate(`/supervisor/category/${row.category.id}`)}
-                    >
-                      {t('supervisor.drillIn')}
-                    </button>
-                  </td>
+        {data.perCategory.length === 0 ? (
+          <p className="muted small">{t('common.noData')}</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>{t('common.category')}</th>
+                  <th>{t('common.students')}</th>
+                  <th>{t('supervisor.atRisk')}</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {data.perCategory.map((row) => (
+                  <tr key={row.category.id}>
+                    <td>{row.category.name}</td>
+                    <td>{row.studentCount}</td>
+                    <td>{row.atRisk}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => navigate(`${basePath}/category/${row.category.id}`)}
+                      >
+                        {t('supervisor.drillIn')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

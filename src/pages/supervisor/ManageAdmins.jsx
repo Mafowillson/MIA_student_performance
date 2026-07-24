@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { ROLES } from '../../context/RoleContext';
+import { useRole, ROLES } from '../../context/RoleContext';
 import { useAdmins, useCategories, useSubjects, useCenters } from '../../hooks';
 import * as api from '../../data/api';
 import Modal from '../../components/Modal';
@@ -17,11 +17,15 @@ const emptyForm = { name: '', email: '', password: '', categoryId: '', subjectId
 
 export default function ManageAdmins() {
   const { t } = useLanguage();
+  const { actor } = useRole();
+  const regionId = actor?.regionId;
   const [role, setRole] = useState(ROLES.REGIONAL_COORDINATOR);
-  const { data: admins, loading, reload } = useAdmins(role);
-  const { data: categories } = useCategories();
-  const { data: subjects } = useSubjects();
-  const { data: centers } = useCenters();
+  // Every list here is scoped to the acting Regional Supervisor's own region
+  // — a Regional Supervisor must never see or edit another region's admins.
+  const { data: admins, loading, reload } = useAdmins(role, regionId);
+  const { data: categories } = useCategories({ regionId });
+  const { data: subjects } = useSubjects({ regionId });
+  const { data: centers } = useCenters({ regionId });
 
   const [editingId, setEditingId] = useState(null); // null = not editing, 'new' = creating
   const [form, setForm] = useState(emptyForm);
