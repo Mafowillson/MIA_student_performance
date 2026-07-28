@@ -26,26 +26,26 @@ export default function ExcelUpload() {
 
   const [categoryId, setCategoryId] = useState('');
   const [week, setWeek] = useState('');
-  const [fileName, setFileName] = useState('');
+  const [file, setFile] = useState(null);
   const [parsing, setParsing] = useState(false);
   const [preview, setPreview] = useState(null); // { subjects, rows }
   const [saveResult, setSaveResult] = useState(null);
 
   async function handleDownloadTemplate() {
     if (!templateCategoryId) return;
-    const { header, sampleRows } = await api.getExcelTemplate(templateCategoryId);
+    const { header, sampleRows } = await api.getExcelTemplate(templateCategoryId, actor.centerId);
     const category = categories.find((c) => c.id === templateCategoryId);
     downloadCsv(`MIA_${category.name.replace(/\s+/g, '_')}_template.csv`, header, sampleRows);
   }
 
   function handleFileChosen(e) {
-    setFileName(e.target.files?.[0]?.name || '');
+    setFile(e.target.files?.[0] || null);
   }
 
   async function handleParse() {
     setParsing(true);
     setSaveResult(null);
-    const result = await api.mockParseExcelUpload({ categoryId, centerId: actor.centerId, week: Number(week) });
+    const result = await api.parseExcelUpload({ file, categoryId, centerId: actor.centerId });
     setPreview(result);
     setParsing(false);
   }
@@ -104,13 +104,17 @@ export default function ExcelUpload() {
           </div>
           <div className="field">
             <label>{t('upload.chooseFile')}</label>
-            <input type="file" accept=".csv,.xlsx" onChange={handleFileChosen} />
+            {/* CSV only — matches what "Download template" above generates.
+                Real .xlsx parsing isn't supported: the `xlsx` npm package
+                has unpatched high-severity advisories, not worth the risk
+                for parsing untrusted uploaded files. */}
+            <input type="file" accept=".csv" onChange={handleFileChosen} />
           </div>
         </div>
         <button
           type="button"
           className="btn mt-1"
-          disabled={!categoryId || !week || !fileName || parsing}
+          disabled={!categoryId || !week || !file || parsing}
           onClick={handleParse}
         >
           {parsing ? t('common.loading') : t('upload.parseFile')}

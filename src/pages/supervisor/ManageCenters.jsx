@@ -6,11 +6,13 @@ import { useCentersManaged } from '../../hooks';
 import * as api from '../../data/api';
 import Modal from '../../components/Modal';
 import Loading from '../../components/Loading';
+import { useConfirmDialog } from '../../components/ConfirmDialogProvider';
 
 const emptyForm = { name: '', location: '' };
 
 export default function ManageCenters() {
   const { t } = useLanguage();
+  const { confirm, alert } = useConfirmDialog();
   const { actor } = useRole();
   const regionId = actor?.regionId;
   // Scoped to the acting Regional Supervisor's own region — a Regional
@@ -55,10 +57,11 @@ export default function ManageCenters() {
   // coordinator, or mentors) — surfaced as an alert since there's no open
   // form at that point, just a row action.
   async function handleDelete(center) {
-    if (!window.confirm(t('manageAdmins.confirmDelete', { name: center.name }))) return;
+    const ok = await confirm({ message: t('manageAdmins.confirmDelete', { name: center.name }) });
+    if (!ok) return;
     const result = await api.deleteCenter(center.id);
     if (!result.success) {
-      window.alert(t(`manageCenters.error_${result.error}`));
+      await alert({ message: t(`manageCenters.error_${result.error}`) });
       return;
     }
     reload();

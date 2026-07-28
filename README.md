@@ -145,16 +145,13 @@ Sign-in is real now — backed by Supabase Auth, not the mock `USERS` table.
   (needs `vite-node` since `mockData.js` uses extensionless imports that
   plain Node ESM can't resolve — `npm install --no-save vite-node` first).
 
-**What's still mock**: only the `USERS` table (demo-accounts list + which
-mock account maps to which role/refId). `createRegionalSupervisor` /
-`createAdmin` / `createMentor` still only push a row into the in-memory
-`_users` array, so accounts created through the Manage screens **can't
-actually sign in yet** — that lands once those flows call a
-service-role-backed Supabase Edge Function (client code can never hold the
-secret key `auth.admin.createUser` needs). Every other entity — regions,
-categories, subjects, centers, the five staff-role tables, students,
-assessments, scores, follow-up notes, outcomes — is real Postgres now; see
-"Data layer" below.
+**What's still mock**: only the `USERS` table (the fixed-password
+demo-accounts shortcut list on the login screen — `getDemoAccounts()`).
+Accounts created through the Manage screens are real now too — see "Staff
+account provisioning" below. Every other entity — regions, categories,
+subjects, centers, the five staff-role tables, students, assessments,
+scores, follow-up notes, outcomes — is real Postgres; see "Data layer"
+below.
 
 Row-Level Security is now the real access-control boundary (see "Data layer"
 below) — `ProtectedRoute` is still only a UX convenience (redirect before a
@@ -162,6 +159,48 @@ doomed data fetch, and hiding nav items a role shouldn't see), not the thing
 actually stopping a signed-in user from reading another region's data; RLS
 is what does that now, enforced by Postgres regardless of what the client
 asks for.
+
+### Staff account provisioning
+
+Creating a real Supabase Auth login needs the **secret** key
+(`auth.admin.createUser`/`updateUserById`/`deleteUser`), which must never
+reach client code — so that one piece runs in
+`supabase/functions/manage-staff-account/index.ts`, a Supabase Edge Function
+(deployed via `supabase functions deploy manage-staff-account --project-ref
+<ref> --use-api`, no Docker required). The client still creates/updates/
+deletes the underlying org-table row itself (regional_coordinators/hods/
+center_coordinators/mentors/regional_supervisors — RLS-scoped, unchanged);
+`src/data/api.js`'s `manageStaffAccount()` helper then calls the function
+(`supabase.functions.invoke('manage-staff-account', { body })`) to attach
+(or detach) the actual login:
+
+- **Create**: org row first, then the function creates the Auth user +
+  `profiles` row. If the function call fails, the org row is rolled back
+  (deleted) so a Regional Coordinator/HOD/Center Coordinator/Mentor/Regional
+  Supervisor row never exists without a working login, or vice versa.
+- **Update**: only calls the function when `name`/`email`/`password` are
+  actually being changed; org-table-only edits (e.g. reassigning a Center
+  Coordinator to a different center) skip it entirely.
+- **Delete**: the function runs *before* the org row is deleted — deleting a
+  HOD's login while their subject assignment still exists, for example — so
+  the function can still derive the correct region/center to authorize
+  against.
+
+The function **re-derives authorization from scratch** server-side (it runs
+with service_role, which bypasses RLS, so it can't just trust the caller's
+claims): it reads the caller's own `profiles` row, then mirrors the same
+scoping rules as the RLS write policies in `002_full_schema.sql` (national
+Supervisor only for Regional Supervisors; Regional Supervisor scoped to
+their own region for Regional Coordinator/HOD/Center Coordinator; Center
+Coordinator scoped to their own center for Mentors) before touching
+`auth.users`. Verified directly: a Regional Supervisor's valid session token
+gets a `403 forbidden` when it tries to touch a Center Coordinator outside
+their own region, even calling the function's HTTP endpoint directly.
+
+`src/data/api.js` also now caches the `profiles` table itself (`_profiles`)
+and reads every admin/mentor table's email from it instead of the mock
+`_users` array — `_users` only backs `getDemoAccounts()`'s fixed-password
+shortcut list now, nothing else.
 
 ### Admin & mentor CRUD
 
@@ -171,13 +210,11 @@ asks for.
 `regional_coordinators` / `hods` / `center_coordinators` / `mentors` /
 `regional_supervisors` tables (see "Data layer"), then update the matching
 in-memory cache array so the current session's UI reflects the change
-without a full reload. Every create/update also writes the matching `USERS`
-entry (used by the demo-accounts list and `resolveActorForUser`) — but per
-"Authentication" above, that's still mock bookkeeping, not a real account,
-until admin creation moves to a Supabase Edge Function. A HOD's `subjectId`
-reassignment
-clears whichever other HOD previously held that subject (a subject has
-exactly one HOD); a Regional Supervisor's `regionId` reassignment likewise
+without a full reload, then calls `manageStaffAccount()` (see "Staff account
+provisioning" above) to create/update/delete the real login. A HOD's
+`subjectId` reassignment clears whichever other HOD previously held that
+subject (a subject has exactly one HOD); a Regional Supervisor's `regionId`
+reassignment likewise
 displaces whoever supervised that region before — both forms show a warning
 naming who gets displaced before you save.
 
@@ -236,6 +273,107 @@ logged-in actor's own `regionId` otherwise (`/supervisor/...`), so it's the
 same screen either way. `getNationalSummary()` aggregates
 `getRegionalSummary()` per region rather than recomputing anything, so the
 two levels of the dashboard can never disagree with each other.
+
+### Programs & Subjects
+
+"Program" is the UI-facing name for the `categories` table/`Category`
+concept (Engineering, Medicine, Technical) — display-text-only rename (see
+`src/i18n/strings.js`); internal identifiers (`categoryId`, `getCategories`,
+`CategoryDrillDown.jsx`, the `categories` table itself) are unchanged.
+
+**Program CRUD** ("Manage Programs", Regional Supervisor only, scoped to
+their own region same as "Manage Centers"): create takes just a `name`,
+auto-stamped with the acting supervisor's `regionId`, and shows up
+immediately in the category dropdown on "Manage Admins" — assigning a
+Regional Coordinator to a brand-new program reuses that existing flow
+unchanged, no separate "assign coordinator" step was built.
+`deleteCategory` is blocked (`category_not_empty`) if the program still has
+any subjects, students, or an assigned Regional Coordinator.
+
+**Subject CRUD** ("Manage Subjects", Regional Coordinator only, scoped to
+their own program): create takes `name` + `maxScore`, auto-stamped with the
+acting coordinator's `categoryId`. Each subject's `maxScore` is the *live*
+value used for new assessments/mark entry/Excel upload going forward;
+already-recorded `scores`/`assessments` keep whatever max score was in
+effect when they were entered (`score.maxScore`, stored per-row) — changing
+a subject's max score later never rewrites past percentages. `deleteSubject`
+is blocked (`subject_not_empty`) once real data exists (any assessment or
+score recorded); a subject with only a HOD assigned and no data yet deletes
+freely, since nothing else references `subjects.hod_id`.
+
+### Mentor assignment
+
+A Center Coordinator's own roster (`CenterCoordinatorDashboard.jsx`) has an
+editable "Mentor" column — a `<select>` scoped to mentors at that same
+center (`useMentorsByCenter`), instead of the plain read-only text every
+other screen that renders `RosterTable` still shows (`CenterDrillDown.jsx`/
+`CategoryDrillDown.jsx` pass neither `mentorOptions` nor `onMentorChange`, so
+they're unaffected — `RosterTable`'s mentor cell only becomes an editable
+dropdown when both are supplied). Picking a mentor (or "Unassigned") calls
+`updateStudentMentor(studentId, mentorId)`, which writes `students.mentor_id`
+directly — the one RLS write policy on `students` that exists for a
+non-national/regional/HOD role, scoped to the acting coordinator's own
+`center_id` (`supabase/005_student_mentor_assignment.sql`).
+
+### Student enrollment
+
+A Center Coordinator can enroll, edit, and withdraw students at their own
+center (`CenterCoordinatorDashboard.jsx` — "Enroll student" button, plus
+Edit/Withdraw row actions rendered through `RosterTable`'s existing
+`extraAction` slot). Backed by `supabase/006_student_enrollment.sql` — no
+new UPDATE policy was needed there; `005_student_mentor_assignment.sql`'s
+existing policy is row-level, not column-level, so it already covered
+editing `name`/`category_id`/`status`, not just `mentor_id`.
+
+**Matricule** (`generateMatricule()` in `api.js`): University-of-Bamenda
+style, `MIA{YY}{CC}{P}{NNN}` — e.g. `MIA26ABE001` for a 2026 Engineering
+student at a center whose name starts "Ab...". The sequence number is
+scoped to the *exact generated prefix string*, not the literal
+`center_id`/`category_id` — this is what stops two centers or programs that
+happen to produce the same code (e.g. two centers both starting "Ba...")
+from colliding; they'd just share one counter instead. A unique index on
+`student_code` is the database-level backstop if a race ever produces a
+duplicate anyway (insert fails, coordinator retries and gets a fresh number).
+
+**Withdraw is a soft-delete** (`updateStudentStatus` sets `status =
+'withdrawn'`) — there's no hard `deleteStudent`/DELETE policy at all. A
+matricule, once issued, isn't destroyed (mirrors a real university), which
+sidesteps deciding what happens to a withdrawn student's existing
+scores/follow-up notes/outcomes. Withdrawn students disappear from
+mark-entry and from the region/program/subject aggregate counts
+(`getManualEntryTable`, `getMarkEntryStatus`, `getRegionalSummary`,
+`getCategorySummary`, `getSubjectSummary` all gained a `status !==
+'withdrawn'` filter) but **stay visible** — tagged "Withdrawn" — on the
+coordinator's own roster (`getStudentsWithStatus`/`getMenteesWithStatus`
+short-circuit straight to that status instead of running at-risk analysis
+on someone no longer active), and can be reactivated.
+
+**Excel upload now really parses a file** — `mockParseExcelUpload` is gone;
+`parseExcelUpload({ file, categoryId, centerId })` reads an actual uploaded
+file and matches students by matricule. Deliberately **CSV only, not real
+`.xlsx`**: the `xlsx` (SheetJS) npm package has two unpatched high-severity
+advisories (prototype pollution, ReDoS) with no fix available, and this
+parses untrusted user-uploaded files — not worth the risk. `src/data/csv.js`
+is a small dependency-free CSV parser instead; "Download template" already
+only ever generated CSV, so nothing about the actual round-trip changes for
+the coordinator, just the file-picker's `accept` narrows to `.csv`. The
+header's ID column accepts "Matricule" or "Student ID"; subject columns are
+matched by name (case-insensitive) against the chosen program's subjects.
+`confirmExcelUpload` also picked up a real bug fix here: a blank mark cell
+used to be saved as a score of **0** (`Number('')`) — it's now correctly
+skipped instead.
+
+### Confirm/alert dialogs
+
+`window.confirm()`/`window.alert()` (the "localhost says" browser chrome)
+are gone — every delete confirmation and blocked-delete message now goes
+through `ConfirmDialogProvider` (`src/components/ConfirmDialogProvider.jsx`,
+mounted once in `App.jsx`). `useConfirmDialog()` exposes `confirm()`/`alert()`,
+both `Promise`-based so call sites barely changed shape (`await confirm(...)`
+in place of the old blocking call). Red icon + red "Delete" button for an
+active destructive confirmation; amber info icon for a plain "here's why
+that didn't happen" alert — kept visually distinct on purpose so a blocked
+action doesn't read as alarming as the delete prompt itself.
 
 ## Data layer
 

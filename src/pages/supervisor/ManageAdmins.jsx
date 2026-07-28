@@ -6,6 +6,7 @@ import { useAdmins, useCategories, useSubjects, useCenters } from '../../hooks';
 import * as api from '../../data/api';
 import Modal from '../../components/Modal';
 import Loading from '../../components/Loading';
+import { useConfirmDialog } from '../../components/ConfirmDialogProvider';
 
 const TABS = [
   { role: ROLES.REGIONAL_COORDINATOR, key: 'regional_coordinator' },
@@ -17,6 +18,7 @@ const emptyForm = { name: '', email: '', password: '', categoryId: '', subjectId
 
 export default function ManageAdmins() {
   const { t } = useLanguage();
+  const { confirm } = useConfirmDialog();
   const { actor } = useRole();
   const regionId = actor?.regionId;
   const [role, setRole] = useState(ROLES.REGIONAL_COORDINATOR);
@@ -94,7 +96,8 @@ export default function ManageAdmins() {
   }
 
   async function handleDelete(admin) {
-    if (!window.confirm(t('manageAdmins.confirmDelete', { name: admin.name }))) return;
+    const ok = await confirm({ message: t('manageAdmins.confirmDelete', { name: admin.name }) });
+    if (!ok) return;
     await api.deleteAdmin(role, admin.id);
     reload();
   }

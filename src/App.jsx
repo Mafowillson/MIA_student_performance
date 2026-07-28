@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { LanguageProvider } from './i18n/LanguageContext';
 import { RoleProvider, ROLES } from './context/RoleContext';
+import { ConfirmDialogProvider } from './components/ConfirmDialogProvider';
 import ProtectedRoute from './components/layout/ProtectedRoute';
 import AppShell from './components/layout/AppShell';
 import PublicLayout from './components/layout/PublicLayout';
@@ -19,7 +20,9 @@ import ManageRegions from './pages/national/ManageRegions';
 import RegionalSupervisorDashboard from './pages/supervisor/RegionalSupervisorDashboard';
 import ManageAdmins from './pages/supervisor/ManageAdmins';
 import ManageCenters from './pages/supervisor/ManageCenters';
+import ManagePrograms from './pages/supervisor/ManagePrograms';
 import RegionalCoordinatorDashboard from './pages/coordinator/RegionalCoordinatorDashboard';
+import ManageSubjects from './pages/coordinator/ManageSubjects';
 import HODDashboard from './pages/hod/HODDashboard';
 import CenterCoordinatorDashboard from './pages/center/CenterCoordinatorDashboard';
 import ManualMarkEntry from './pages/center/ManualMarkEntry';
@@ -38,6 +41,7 @@ export default function App() {
   return (
     <LanguageProvider>
       <RoleProvider>
+        <ConfirmDialogProvider>
         <BrowserRouter>
           <Routes>
             <Route element={<PublicLayout />}>
@@ -140,6 +144,14 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/supervisor/programs"
+                element={
+                  <ProtectedRoute allow={[ROLES.REGIONAL_SUPERVISOR]}>
+                    <ManagePrograms />
+                  </ProtectedRoute>
+                }
+              />
 
               <Route
                 path="/coordinator"
@@ -154,6 +166,14 @@ export default function App() {
                 element={
                   <ProtectedRoute allow={[ROLES.REGIONAL_COORDINATOR]}>
                     <CenterDrillDown />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/coordinator/subjects"
+                element={
+                  <ProtectedRoute allow={[ROLES.REGIONAL_COORDINATOR]}>
+                    <ManageSubjects />
                   </ProtectedRoute>
                 }
               />
@@ -228,6 +248,7 @@ export default function App() {
             </Route>
           </Routes>
         </BrowserRouter>
+        </ConfirmDialogProvider>
       </RoleProvider>
     </LanguageProvider>
   );

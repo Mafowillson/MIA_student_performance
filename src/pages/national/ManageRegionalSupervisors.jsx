@@ -5,11 +5,13 @@ import { useRegionalSupervisors, useRegions } from '../../hooks';
 import * as api from '../../data/api';
 import Modal from '../../components/Modal';
 import Loading from '../../components/Loading';
+import { useConfirmDialog } from '../../components/ConfirmDialogProvider';
 
 const emptyForm = { name: '', email: '', password: '', regionId: '' };
 
 export default function ManageRegionalSupervisors() {
   const { t } = useLanguage();
+  const { confirm } = useConfirmDialog();
   const { data: supervisors, loading, reload } = useRegionalSupervisors();
   const { data: regions } = useRegions();
 
@@ -58,7 +60,8 @@ export default function ManageRegionalSupervisors() {
   }
 
   async function handleDelete(supervisor) {
-    if (!window.confirm(t('manageAdmins.confirmDelete', { name: supervisor.name }))) return;
+    const ok = await confirm({ message: t('manageAdmins.confirmDelete', { name: supervisor.name }) });
+    if (!ok) return;
     await api.deleteRegionalSupervisor(supervisor.id);
     reload();
   }

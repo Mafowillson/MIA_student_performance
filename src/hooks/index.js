@@ -48,12 +48,26 @@ export function useCategories(filters = {}) {
   return useAsync(() => api.getCategories(filters), [filters.regionId]);
 }
 
+// Regional Supervisor program management, scoped to their own region.
+// Mutating calls (createCategory/updateCategory/deleteCategory) are called
+// directly from the component, same pattern as the other management screens.
+export function useCategoriesManaged(regionId) {
+  return useAsync(() => api.getCategoriesManaged(regionId), [regionId]);
+}
+
 export function useSubjects(filters = {}) {
   return useAsync(() => api.getSubjects(filters), [filters.categoryId, filters.regionId]);
 }
 
 export function useSubject(subjectId) {
   return useAsync(() => api.getSubjectById(subjectId), [subjectId]);
+}
+
+// Regional Coordinator subject management, scoped to their own program.
+// Mutating calls (createSubject/updateSubject/deleteSubject) are called
+// directly from the component, same pattern as the other management screens.
+export function useSubjectsManaged(categoryId) {
+  return useAsync(() => api.getSubjectsManaged(categoryId), [categoryId]);
 }
 
 export function useCenters(filters = {}) {

@@ -1,20 +1,23 @@
 import { useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { useRegions, useRegionalSupervisors, useCenters } from '../../hooks';
+import { useRole } from '../../context/RoleContext';
+import { useSubjectsManaged } from '../../hooks';
 import * as api from '../../data/api';
 import Modal from '../../components/Modal';
 import Loading from '../../components/Loading';
 import { useConfirmDialog } from '../../components/ConfirmDialogProvider';
 
-const emptyForm = { name: '' };
+const emptyForm = { name: '', maxScore: '20' };
 
-export default function ManageRegions() {
+export default function ManageSubjects() {
   const { t } = useLanguage();
   const { confirm, alert } = useConfirmDialog();
-  const { data: regions, loading: regionsLoading, reload } = useRegions();
-  const { data: supervisors, loading: supervisorsLoading } = useRegionalSupervisors();
-  const { data: centers, loading: centersLoading } = useCenters();
+  const { actor } = useRole();
+  const categoryId = actor?.categoryId;
+  // Scoped to the acting Regional Coordinator's own program — a Regional
+  // Coordinator never sees or edits another program's subjects.
+  const { data: subjects, loading, reload } = useSubjectsManaged(categoryId);
 
   const [editingId, setEditingId] = useState(null); // null = closed, 'new' = creating
   const [form, setForm] = useState(emptyForm);
@@ -27,10 +30,10 @@ export default function ManageRegions() {
     setEditingId('new');
   }
 
-  function openEdit(region) {
-    setForm({ name: region.name });
+  function openEdit(subject) {
+    setForm({ name: subject.name, maxScore: String(subject.maxScore) });
     setFormError('');
-    setEditingId(region.id);
+    setEditingId(subject.id);
   }
 
   async function handleSave(e) {
@@ -39,47 +42,43 @@ export default function ManageRegions() {
     setFormError('');
     const result =
       editingId === 'new'
-        ? await api.createRegion({ name: form.name })
-        : await api.updateRegion(editingId, { name: form.name });
+        ? await api.createSubject({ name: form.name, maxScore: Number(form.maxScore), categoryId })
+        : await api.updateSubject(editingId, { name: form.name, maxScore: Number(form.maxScore) });
     setSaving(false);
     if (!result.success) {
-      setFormError(t(`manageRegions.error_${result.error}`));
+      setFormError(t(`manageSubjects.error_${result.error}`));
       return;
     }
     setEditingId(null);
     reload();
   }
 
-  // Deletion can be blocked by the data layer (region still has centers or a
-  // supervisor) — surfaced as an alert rather than a form error since there's
-  // no form open at that point, just a row action.
-  async function handleDelete(region) {
-    const ok = await confirm({ message: t('manageAdmins.confirmDelete', { name: region.name }) });
+  // Deletion can be blocked by the data layer (subject already has real
+  // assessments/scores recorded) — surfaced as an alert since there's no
+  // open form at that point, just a row action.
+  async function handleDelete(subject) {
+    const ok = await confirm({ message: t('manageAdmins.confirmDelete', { name: subject.name }) });
     if (!ok) return;
-    const result = await api.deleteRegion(region.id);
+    const result = await api.deleteSubject(subject.id);
     if (!result.success) {
-      await alert({ message: t(`manageRegions.error_${result.error}`) });
+      await alert({ message: t(`manageSubjects.error_${result.error}`) });
       return;
     }
     reload();
   }
 
-  const loading = regionsLoading || supervisorsLoading || centersLoading;
   if (loading) return <Loading />;
-
-  const centerCountFor = (regionId) => centers.filter((c) => c.regionId === regionId).length;
-  const supervisorNameFor = (regionId) => supervisors.find((s) => s.regionId === regionId)?.name;
 
   return (
     <div className="stack">
       <div className="row-between">
         <div>
-          <h1>{t('manageRegions.title')}</h1>
-          <p className="muted">{t('manageRegions.summary')}</p>
+          <h1>{t('manageSubjects.title')}</h1>
+          <p className="muted">{t('manageSubjects.summary')}</p>
         </div>
         <button type="button" className="btn" onClick={openCreate}>
           <Plus size={16} strokeWidth={2} />
-          {t('manageRegions.addNew')}
+          {t('manageSubjects.addNew')}
         </button>
       </div>
 
@@ -88,31 +87,31 @@ export default function ManageRegions() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>{t('manageRegions.name')}</th>
-                <th>{t('manageRegions.centers')}</th>
-                <th>{t('manageRegions.supervisor')}</th>
+                <th>{t('manageSubjects.name')}</th>
+                <th>{t('manageSubjects.maxScore')}</th>
+                <th>{t('manageSubjects.hod')}</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {regions.map((region) => (
-                <tr key={region.id}>
-                  <td>{region.name}</td>
-                  <td>{centerCountFor(region.id)}</td>
-                  <td>{supervisorNameFor(region.id) ?? t('national.noSupervisor')}</td>
+              {subjects.map((subject) => (
+                <tr key={subject.id}>
+                  <td>{subject.name}</td>
+                  <td>{subject.maxScore}</td>
+                  <td>{subject.hodName ?? t('manageSubjects.noHod')}</td>
                   <td>
                     <div className="manage-row-actions">
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(region)}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(subject)}>
                         <Pencil size={14} strokeWidth={2} />
                       </button>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDelete(region)}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDelete(subject)}>
                         <Trash2 size={14} strokeWidth={2} />
                       </button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {regions.length === 0 && (
+              {subjects.length === 0 && (
                 <tr>
                   <td colSpan={4} className="muted">{t('common.noData')}</td>
                 </tr>
@@ -124,17 +123,27 @@ export default function ManageRegions() {
 
       {editingId && (
         <Modal
-          title={editingId === 'new' ? t('manageRegions.addNew') : t('manageRegions.editTitle')}
+          title={editingId === 'new' ? t('manageSubjects.addNew') : t('manageSubjects.editTitle')}
           onClose={() => setEditingId(null)}
         >
           <form className="stack" onSubmit={handleSave}>
             <div className="field">
-              <label>{t('manageRegions.name')}</label>
+              <label>{t('manageSubjects.name')}</label>
               <input
                 type="text"
                 required
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              />
+            </div>
+            <div className="field">
+              <label>{t('manageSubjects.maxScore')}</label>
+              <input
+                type="number"
+                min={1}
+                required
+                value={form.maxScore}
+                onChange={(e) => setForm((f) => ({ ...f, maxScore: e.target.value }))}
               />
             </div>
 

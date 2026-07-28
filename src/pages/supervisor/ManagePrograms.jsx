@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { useRegions, useRegionalSupervisors, useCenters } from '../../hooks';
+import { useRole } from '../../context/RoleContext';
+import { useCategoriesManaged } from '../../hooks';
 import * as api from '../../data/api';
 import Modal from '../../components/Modal';
 import Loading from '../../components/Loading';
@@ -9,12 +10,14 @@ import { useConfirmDialog } from '../../components/ConfirmDialogProvider';
 
 const emptyForm = { name: '' };
 
-export default function ManageRegions() {
+export default function ManagePrograms() {
   const { t } = useLanguage();
   const { confirm, alert } = useConfirmDialog();
-  const { data: regions, loading: regionsLoading, reload } = useRegions();
-  const { data: supervisors, loading: supervisorsLoading } = useRegionalSupervisors();
-  const { data: centers, loading: centersLoading } = useCenters();
+  const { actor } = useRole();
+  const regionId = actor?.regionId;
+  // Scoped to the acting Regional Supervisor's own region — a Regional
+  // Supervisor never sees or edits another region's programs.
+  const { data: programs, loading, reload } = useCategoriesManaged(regionId);
 
   const [editingId, setEditingId] = useState(null); // null = closed, 'new' = creating
   const [form, setForm] = useState(emptyForm);
@@ -27,10 +30,10 @@ export default function ManageRegions() {
     setEditingId('new');
   }
 
-  function openEdit(region) {
-    setForm({ name: region.name });
+  function openEdit(program) {
+    setForm({ name: program.name });
     setFormError('');
-    setEditingId(region.id);
+    setEditingId(program.id);
   }
 
   async function handleSave(e) {
@@ -39,47 +42,43 @@ export default function ManageRegions() {
     setFormError('');
     const result =
       editingId === 'new'
-        ? await api.createRegion({ name: form.name })
-        : await api.updateRegion(editingId, { name: form.name });
+        ? await api.createCategory({ name: form.name, regionId })
+        : await api.updateCategory(editingId, { name: form.name });
     setSaving(false);
     if (!result.success) {
-      setFormError(t(`manageRegions.error_${result.error}`));
+      setFormError(t(`managePrograms.error_${result.error}`));
       return;
     }
     setEditingId(null);
     reload();
   }
 
-  // Deletion can be blocked by the data layer (region still has centers or a
-  // supervisor) — surfaced as an alert rather than a form error since there's
-  // no form open at that point, just a row action.
-  async function handleDelete(region) {
-    const ok = await confirm({ message: t('manageAdmins.confirmDelete', { name: region.name }) });
+  // Deletion can be blocked by the data layer (program still has subjects, a
+  // Regional Coordinator, or students) — surfaced as an alert since there's
+  // no open form at that point, just a row action.
+  async function handleDelete(program) {
+    const ok = await confirm({ message: t('manageAdmins.confirmDelete', { name: program.name }) });
     if (!ok) return;
-    const result = await api.deleteRegion(region.id);
+    const result = await api.deleteCategory(program.id);
     if (!result.success) {
-      await alert({ message: t(`manageRegions.error_${result.error}`) });
+      await alert({ message: t(`managePrograms.error_${result.error}`) });
       return;
     }
     reload();
   }
 
-  const loading = regionsLoading || supervisorsLoading || centersLoading;
   if (loading) return <Loading />;
-
-  const centerCountFor = (regionId) => centers.filter((c) => c.regionId === regionId).length;
-  const supervisorNameFor = (regionId) => supervisors.find((s) => s.regionId === regionId)?.name;
 
   return (
     <div className="stack">
       <div className="row-between">
         <div>
-          <h1>{t('manageRegions.title')}</h1>
-          <p className="muted">{t('manageRegions.summary')}</p>
+          <h1>{t('managePrograms.title')}</h1>
+          <p className="muted">{t('managePrograms.summary')}</p>
         </div>
         <button type="button" className="btn" onClick={openCreate}>
           <Plus size={16} strokeWidth={2} />
-          {t('manageRegions.addNew')}
+          {t('managePrograms.addNew')}
         </button>
       </div>
 
@@ -88,33 +87,35 @@ export default function ManageRegions() {
           <table className="data-table">
             <thead>
               <tr>
-                <th>{t('manageRegions.name')}</th>
-                <th>{t('manageRegions.centers')}</th>
-                <th>{t('manageRegions.supervisor')}</th>
+                <th>{t('managePrograms.name')}</th>
+                <th>{t('managePrograms.coordinator')}</th>
+                <th>{t('managePrograms.subjects')}</th>
+                <th>{t('common.students')}</th>
                 <th />
               </tr>
             </thead>
             <tbody>
-              {regions.map((region) => (
-                <tr key={region.id}>
-                  <td>{region.name}</td>
-                  <td>{centerCountFor(region.id)}</td>
-                  <td>{supervisorNameFor(region.id) ?? t('national.noSupervisor')}</td>
+              {programs.map((program) => (
+                <tr key={program.id}>
+                  <td>{program.name}</td>
+                  <td>{program.coordinatorName ?? t('managePrograms.noCoordinator')}</td>
+                  <td>{program.subjectCount}</td>
+                  <td>{program.studentCount}</td>
                   <td>
                     <div className="manage-row-actions">
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(region)}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(program)}>
                         <Pencil size={14} strokeWidth={2} />
                       </button>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDelete(region)}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleDelete(program)}>
                         <Trash2 size={14} strokeWidth={2} />
                       </button>
                     </div>
                   </td>
                 </tr>
               ))}
-              {regions.length === 0 && (
+              {programs.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="muted">{t('common.noData')}</td>
+                  <td colSpan={5} className="muted">{t('common.noData')}</td>
                 </tr>
               )}
             </tbody>
@@ -124,12 +125,12 @@ export default function ManageRegions() {
 
       {editingId && (
         <Modal
-          title={editingId === 'new' ? t('manageRegions.addNew') : t('manageRegions.editTitle')}
+          title={editingId === 'new' ? t('managePrograms.addNew') : t('managePrograms.editTitle')}
           onClose={() => setEditingId(null)}
         >
           <form className="stack" onSubmit={handleSave}>
             <div className="field">
-              <label>{t('manageRegions.name')}</label>
+              <label>{t('managePrograms.name')}</label>
               <input
                 type="text"
                 required

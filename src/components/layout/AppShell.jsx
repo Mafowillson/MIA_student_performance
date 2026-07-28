@@ -14,9 +14,13 @@ const NAV_BY_ROLE = {
   [ROLES.REGIONAL_SUPERVISOR]: [
     { to: '/supervisor', key: 'dashboard' },
     { to: '/supervisor/centers', key: 'manageCenters' },
+    { to: '/supervisor/programs', key: 'managePrograms' },
     { to: '/supervisor/admins', key: 'manageAdmins' },
   ],
-  [ROLES.REGIONAL_COORDINATOR]: [{ to: '/coordinator', key: 'dashboard' }],
+  [ROLES.REGIONAL_COORDINATOR]: [
+    { to: '/coordinator', key: 'dashboard' },
+    { to: '/coordinator/subjects', key: 'manageSubjects' },
+  ],
   [ROLES.HOD]: [{ to: '/hod', key: 'dashboard' }],
   [ROLES.CENTER_COORDINATOR]: [
     { to: '/center', key: 'dashboard' },

@@ -10,13 +10,13 @@ import {
   NATIONAL_SUPERVISOR,
   WEEKS,
   CURRENT_WEEK,
-  MAX_SCORE,
   USERS as USERS_SEED,
   DEMO_PASSWORD,
 } from './mockData';
 import { analyzeSubjectHistory, computeStudentStatus, computeTrendNarrative } from './atRisk';
 import { ROLES } from '../constants/roles';
 import { supabase } from './supabaseClient';
+import { parseCsv } from './csv';
 
 function delay(value, ms = 280) {
   return new Promise((resolve) => {
@@ -34,7 +34,13 @@ function clone(value) {
 // ---------------------------------------------------------------------------
 const mapRegion = (r) => ({ id: r.id, name: r.name });
 const mapCategory = (c) => ({ id: c.id, name: c.name, regionId: c.region_id });
-const mapSubject = (s) => ({ id: s.id, name: s.name, categoryId: s.category_id, hodId: s.hod_id });
+const mapSubject = (s) => ({
+  id: s.id,
+  name: s.name,
+  categoryId: s.category_id,
+  hodId: s.hod_id,
+  maxScore: Number(s.max_score),
+});
 const mapCenter = (c) => ({ id: c.id, name: c.name, location: c.location, regionId: c.region_id });
 const mapRegionalSupervisor = (rs) => ({ id: rs.id, name: rs.name, regionId: rs.region_id });
 const mapRegionalCoordinator = (c) => ({ id: c.id, name: c.name, categoryId: c.category_id });
@@ -540,6 +546,69 @@ export async function getCategories(filters = {}) {
   return clone(list);
 }
 
+// ---------------------------------------------------------------------------
+// Program management (Regional Supervisor CRUD, scoped to their own region —
+// "Program" in the UI, `categories` in the schema; see README "Data layer").
+// ---------------------------------------------------------------------------
+export async function getCategoriesManaged(regionId) {
+  await ensureDataLoaded();
+  const list = _categories
+    .filter((c) => c.regionId === regionId)
+    .map((category) => {
+      const coordinator = _regionalCoordinators.find((rc) => rc.categoryId === category.id);
+      return {
+        ...category,
+        coordinatorName: coordinator?.name ?? null,
+        subjectCount: _subjects.filter((s) => s.categoryId === category.id).length,
+        studentCount: _students.filter((s) => s.categoryId === category.id).length,
+      };
+    });
+  return clone(list);
+}
+
+// { name, regionId }
+export async function createCategory({ name, regionId }) {
+  await ensureDataLoaded();
+  const id = `cat-${Date.now()}`;
+  const { error } = await supabase.from('categories').insert({ id, name, region_id: regionId });
+  if (error) return { success: false, error: 'save_failed' };
+  _categories.push({ id, name, regionId });
+  return { success: true, id };
+}
+
+export async function updateCategory(id, updates) {
+  await ensureDataLoaded();
+  const category = _categories.find((c) => c.id === id);
+  if (!category) return { success: false, error: 'not_found' };
+  const patch = {};
+  if (updates.name != null) patch.name = updates.name;
+  const { error } = await supabase.from('categories').update(patch).eq('id', id);
+  if (error) return { success: false, error: 'save_failed' };
+  if (updates.name != null) category.name = updates.name;
+  return { success: true };
+}
+
+// Same "only delete what's genuinely empty" rule as deleteCenter — a program
+// with subjects, students, or an assigned Regional Coordinator cascades
+// through too much to tear down safely from one click.
+export async function deleteCategory(id) {
+  await ensureDataLoaded();
+  const idx = _categories.findIndex((c) => c.id === id);
+  if (idx === -1) return { success: false, error: 'not_found' };
+
+  const hasSubjects = _subjects.some((s) => s.categoryId === id);
+  const hasStudents = _students.some((s) => s.categoryId === id);
+  const hasCoordinator = _regionalCoordinators.some((rc) => rc.categoryId === id);
+  if (hasSubjects || hasStudents || hasCoordinator) {
+    return { success: false, error: 'category_not_empty' };
+  }
+
+  const { error } = await supabase.from('categories').delete().eq('id', id);
+  if (error) return { success: false, error: 'save_failed' };
+  _categories.splice(idx, 1);
+  return { success: true };
+}
+
 export async function getSubjects(filters = {}) {
   await ensureDataLoaded();
   let list = _subjects;
@@ -557,6 +626,68 @@ export async function getSubjects(filters = {}) {
 export async function getSubjectById(id) {
   await ensureDataLoaded();
   return clone(_subjects.find((s) => s.id === id) || null);
+}
+
+// ---------------------------------------------------------------------------
+// Subject management (Regional Coordinator CRUD, scoped to their own
+// program — they create/edit/remove the subjects their program runs, and
+// set each one's own max score for its weekly CA).
+// ---------------------------------------------------------------------------
+export async function getSubjectsManaged(categoryId) {
+  await ensureDataLoaded();
+  const list = _subjects
+    .filter((s) => s.categoryId === categoryId)
+    .map((subject) => ({
+      ...subject,
+      hodName: _hods.find((h) => h.id === subject.hodId)?.name ?? null,
+    }));
+  return clone(list);
+}
+
+// { name, maxScore, categoryId }
+export async function createSubject({ name, maxScore, categoryId }) {
+  await ensureDataLoaded();
+  const id = `sub-${Date.now()}`;
+  const { error } = await supabase
+    .from('subjects')
+    .insert({ id, name, category_id: categoryId, max_score: maxScore });
+  if (error) return { success: false, error: 'save_failed' };
+  _subjects.push({ id, name, categoryId, hodId: null, maxScore: Number(maxScore) });
+  return { success: true, id };
+}
+
+export async function updateSubject(id, updates) {
+  await ensureDataLoaded();
+  const subject = _subjects.find((s) => s.id === id);
+  if (!subject) return { success: false, error: 'not_found' };
+  const patch = {};
+  if (updates.name != null) patch.name = updates.name;
+  if (updates.maxScore != null) patch.max_score = updates.maxScore;
+  const { error } = await supabase.from('subjects').update(patch).eq('id', id);
+  if (error) return { success: false, error: 'save_failed' };
+  if (updates.name != null) subject.name = updates.name;
+  if (updates.maxScore != null) subject.maxScore = Number(updates.maxScore);
+  return { success: true };
+}
+
+// Blocked once real academic data exists for it (assessments/scores already
+// recorded) — a subject with only a HOD assigned and no data yet deletes
+// freely, since nothing else references subjects.hod_id.
+export async function deleteSubject(id) {
+  await ensureDataLoaded();
+  const idx = _subjects.findIndex((s) => s.id === id);
+  if (idx === -1) return { success: false, error: 'not_found' };
+
+  const hasAssessments = _assessments.some((a) => a.subjectId === id);
+  const hasScores = _scores.some((sc) => sc.subjectId === id);
+  if (hasAssessments || hasScores) {
+    return { success: false, error: 'subject_not_empty' };
+  }
+
+  const { error } = await supabase.from('subjects').delete().eq('id', id);
+  if (error) return { success: false, error: 'save_failed' };
+  _subjects.splice(idx, 1);
+  return { success: true };
 }
 
 export async function getCenters(filters = {}) {
@@ -996,6 +1127,99 @@ export async function getStudentById(id) {
   return clone(_students.find((s) => s.id === id) || null);
 }
 
+// Center Coordinator assigns/reassigns which mentor (at their own center) is
+// responsible for a student at their own center — mentorId may be null to
+// unassign. RLS scopes the write to the acting coordinator's own center.
+export async function updateStudentMentor(studentId, mentorId) {
+  await ensureDataLoaded();
+  const student = _students.find((s) => s.id === studentId);
+  if (!student) return { success: false, error: 'not_found' };
+  const { error } = await supabase.from('students').update({ mentor_id: mentorId }).eq('id', studentId);
+  if (error) return { success: false, error: 'save_failed' };
+  student.mentorId = mentorId;
+  return { success: true };
+}
+
+// Builds a University-of-Bamenda-style matricule: MIA{YY}{CC}{P}{NNN} — YY =
+// current year, CC = first 2 letters of the center's name, P = first letter
+// of the program's name, NNN = zero-padded sequence number. The sequence is
+// scoped to the exact generated PREFIX (not the literal center_id/
+// categoryId) so that two centers or programs that happen to produce the
+// same code (e.g. "Bamenda"/"Bafut" both -> "BA") still can't collide — they
+// just share one counter. A unique index on student_code (see
+// 006_student_enrollment.sql) is the DB-level backstop if a race ever
+// produces a duplicate anyway.
+function generateMatricule({ centerId, categoryId }) {
+  const center = _centers.find((c) => c.id === centerId);
+  const category = _categories.find((c) => c.id === categoryId);
+  const year2 = String(new Date().getFullYear()).slice(-2);
+  const centerCode = (center?.name ?? '').replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase().padEnd(2, 'X');
+  const programCode = (category?.name ?? '').trim().charAt(0).toUpperCase() || 'X';
+  const prefix = `MIA${year2}${centerCode}${programCode}`;
+
+  const existingNumbers = _students
+    .filter((s) => s.studentCode?.startsWith(prefix))
+    .map((s) => parseInt(s.studentCode.slice(prefix.length), 10))
+    .filter((n) => !Number.isNaN(n));
+  const next = (existingNumbers.length ? Math.max(...existingNumbers) : 0) + 1;
+  return `${prefix}${String(next).padStart(3, '0')}`;
+}
+
+// { name, categoryId, mentorId?, centerId } — centerId is always the acting
+// Center Coordinator's own center (never a free-form field in the UI),
+// matching the RLS insert policy. Returns the generated matricule so the
+// coordinator can hand it to the student.
+export async function createStudent({ name, categoryId, mentorId, centerId }) {
+  await ensureDataLoaded();
+  const studentCode = generateMatricule({ centerId, categoryId });
+  const id = `stu-${Date.now()}`;
+  const row = {
+    id,
+    student_code: studentCode,
+    name,
+    center_id: centerId,
+    category_id: categoryId,
+    mentor_id: mentorId ?? null,
+    enrollment_date: new Date().toISOString().slice(0, 10),
+    status: 'active',
+  };
+  const { error } = await supabase.from('students').insert(row);
+  if (error) return { success: false, error: 'save_failed' };
+  _students.push(mapStudent(row));
+  return { success: true, id, studentCode };
+}
+
+// name/categoryId/mentorId only — centerId is never editable here (a
+// coordinator only manages their own center) and the matricule is never
+// regenerated once issued (mirrors how a real university matricule works).
+export async function updateStudent(id, { name, categoryId, mentorId }) {
+  await ensureDataLoaded();
+  const student = _students.find((s) => s.id === id);
+  if (!student) return { success: false, error: 'not_found' };
+  const patch = {};
+  if (name != null) patch.name = name;
+  if (categoryId != null) patch.category_id = categoryId;
+  if (mentorId !== undefined) patch.mentor_id = mentorId;
+  const { error } = await supabase.from('students').update(patch).eq('id', id);
+  if (error) return { success: false, error: 'save_failed' };
+  if (name != null) student.name = name;
+  if (categoryId != null) student.categoryId = categoryId;
+  if (mentorId !== undefined) student.mentorId = mentorId;
+  return { success: true };
+}
+
+// The withdraw/reactivate toggle — soft, not a hard delete (see README
+// "Student enrollment" for why: a matricule, once issued, isn't destroyed).
+export async function updateStudentStatus(id, status) {
+  await ensureDataLoaded();
+  const student = _students.find((s) => s.id === id);
+  if (!student) return { success: false, error: 'not_found' };
+  const { error } = await supabase.from('students').update({ status }).eq('id', id);
+  if (error) return { success: false, error: 'save_failed' };
+  student.status = status;
+  return { success: true };
+}
+
 // Minimal, anonymous-safe roster (id/name/studentCode only) — backs the
 // pre-login "preview a shared student page" dropdown, which by design works
 // with no signed-in session. See get_shared_student_bundle in
@@ -1011,6 +1235,11 @@ export async function getShareableStudents() {
 // Scores / history / at-risk analysis
 // ---------------------------------------------------------------------------
 function buildHistoryForStudentSubject(studentId, subjectId) {
+  // A not-yet-entered week has no recorded score to carry its own max score,
+  // so it falls back to the subject's current live value; an already-entered
+  // week keeps using whatever max score was in effect when it was recorded
+  // (historical accuracy if the subject's max score changes later).
+  const liveMaxScore = _subjects.find((s) => s.id === subjectId)?.maxScore ?? 20;
   return WEEKS.map(({ week, date }) => {
     const score = _scores.find(
       (s) => s.studentId === studentId && s.subjectId === subjectId && s.week === week,
@@ -1019,8 +1248,8 @@ function buildHistoryForStudentSubject(studentId, subjectId) {
       week,
       date,
       marksObtained: score ? score.marksObtained : null,
-      maxScore: MAX_SCORE,
-      pct: score ? (score.marksObtained / MAX_SCORE) * 100 : null,
+      maxScore: score ? score.maxScore : liveMaxScore,
+      pct: score ? (score.marksObtained / score.maxScore) * 100 : null,
     };
   });
 }
@@ -1077,13 +1306,16 @@ export async function getMenteesWithStatus(mentorId) {
   const mentees = _students.filter((s) => s.mentorId === mentorId);
   const withStatus = await Promise.all(
     mentees.map(async (student) => {
-      const analysis = await getStudentAnalysis(student.id);
       const sparkline = Object.values(await getSubjectHistories(student.id));
       // Use the first subject's history as the headline sparkline series.
       const headlineHistory = sparkline.length ? sparkline[0].history : [];
+      // A withdrawn student isn't "needs attention" or "steady" — those
+      // labels only mean something for someone still active — so skip
+      // at-risk analysis entirely rather than running it on stale data.
+      const status = student.status === 'withdrawn' ? 'withdrawn' : (await getStudentAnalysis(student.id)).status;
       return {
         ...student,
-        status: analysis.status,
+        status,
         headlineHistory,
       };
     }),
@@ -1103,13 +1335,15 @@ export async function getStudentsWithStatus(filters = {}) {
 
   const withStatus = await Promise.all(
     students.map(async (student) => {
-      const analysis = await getStudentAnalysis(student.id);
+      // See getMenteesWithStatus above — a withdrawn student skips at-risk
+      // analysis entirely rather than being (mis)labeled by stale data.
+      const status = student.status === 'withdrawn' ? 'withdrawn' : (await getStudentAnalysis(student.id)).status;
       const mentor = _mentors.find((m) => m.id === student.mentorId);
       const center = _centers.find((c) => c.id === student.centerId);
       const category = _categories.find((c) => c.id === student.categoryId);
       return {
         ...student,
-        status: analysis.status,
+        status,
         mentorName: mentor?.name ?? '—',
         centerName: center?.name ?? '—',
         categoryName: category?.name ?? '—',
@@ -1138,7 +1372,7 @@ export async function getMarkEntryStatus(regionId) {
   centers.forEach((center) => {
     categories.forEach((category) => {
       const studentsInGroup = _students.filter(
-        (s) => s.centerId === center.id && s.categoryId === category.id,
+        (s) => s.centerId === center.id && s.categoryId === category.id && s.status !== 'withdrawn',
       );
       if (studentsInGroup.length === 0) return;
       const subjects = _subjects.filter((s) => s.categoryId === category.id);
@@ -1180,7 +1414,10 @@ export async function getRegionalSummary(regionId) {
   const centers = _centers.filter((c) => c.regionId === regionId);
   const categories = _categories.filter((c) => c.regionId === regionId);
   const centerIds = new Set(centers.map((c) => c.id));
-  const allStudents = _students.filter((s) => centerIds.has(s.centerId));
+  // Withdrawn students don't count toward totals/at-risk stats — they're
+  // no longer active, so they shouldn't drag down (or otherwise affect)
+  // completion/at-risk aggregates.
+  const allStudents = _students.filter((s) => centerIds.has(s.centerId) && s.status !== 'withdrawn');
   const statuses = await Promise.all(allStudents.map((s) => getStudentAnalysis(s.id)));
   const atRiskCount = statuses.filter((s) => s.status === 'needs_attention').length;
   const incompleteCount = statuses.filter((s) => s.status === 'incomplete_data').length;
@@ -1253,7 +1490,7 @@ export async function getNationalSummary() {
 
 export async function getCategorySummary(categoryId) {
   await ensureDataLoaded();
-  const students = _students.filter((s) => s.categoryId === categoryId);
+  const students = _students.filter((s) => s.categoryId === categoryId && s.status !== 'withdrawn');
   const statuses = await Promise.all(students.map((s) => getStudentAnalysis(s.id)));
   const markEntry = (await getMarkEntryStatus()).filter((r) => r.categoryId === categoryId);
 
@@ -1283,12 +1520,12 @@ export async function getSubjectSummary(subjectId) {
   await ensureDataLoaded();
   const subject = _subjects.find((s) => s.id === subjectId);
   if (!subject) return null;
-  const students = _students.filter((s) => s.categoryId === subject.categoryId);
+  const students = _students.filter((s) => s.categoryId === subject.categoryId && s.status !== 'withdrawn');
 
   const weeklyAvg = WEEKS.map(({ week, date }) => {
     const weekScores = _scores.filter((sc) => sc.subjectId === subjectId && sc.week === week);
     const avgPct = weekScores.length
-      ? weekScores.reduce((sum, sc) => sum + (sc.marksObtained / MAX_SCORE) * 100, 0) /
+      ? weekScores.reduce((sum, sc) => sum + (sc.marksObtained / sc.maxScore) * 100, 0) /
         weekScores.length
       : null;
     return { week, date, avgPct };
@@ -1301,7 +1538,7 @@ export async function getSubjectSummary(subjectId) {
       (sc) => sc.subjectId === subjectId && centerStudents.some((s) => s.id === sc.studentId),
     );
     const avgPct = centerScores.length
-      ? centerScores.reduce((sum, sc) => sum + (sc.marksObtained / MAX_SCORE) * 100, 0) /
+      ? centerScores.reduce((sum, sc) => sum + (sc.marksObtained / sc.maxScore) * 100, 0) /
         centerScores.length
       : null;
     return { center, studentCount: centerStudents.length, avgPct };
@@ -1341,7 +1578,7 @@ export async function getManualEntryTable({ centerId, subjectId, week }) {
   const subject = _subjects.find((s) => s.id === subjectId);
   if (!subject) return [];
   const students = _students.filter(
-    (s) => s.centerId === centerId && s.categoryId === subject.categoryId,
+    (s) => s.centerId === centerId && s.categoryId === subject.categoryId && s.status !== 'withdrawn',
   );
   return students.map((student) => {
     const existing = _scores.find(
@@ -1352,7 +1589,7 @@ export async function getManualEntryTable({ centerId, subjectId, week }) {
       studentCode: student.studentCode,
       name: student.name,
       marksObtained: existing ? existing.marksObtained : '',
-      maxScore: MAX_SCORE,
+      maxScore: subject.maxScore,
     };
   });
 }
@@ -1361,13 +1598,14 @@ async function ensureAssessment(subjectId, week) {
   const assessmentId = `asmt-${subjectId}-w${week}`;
   if (_assessments.some((a) => a.id === assessmentId)) return assessmentId;
   const weekMeta = WEEKS.find((w) => w.week === week);
+  const subjectMaxScore = _subjects.find((s) => s.id === subjectId)?.maxScore ?? 20;
   const assessment = {
     id: assessmentId,
     subjectId,
     week,
     date: weekMeta ? weekMeta.date : new Date().toISOString().slice(0, 10),
     termId: 'term-2-2026',
-    maxScore: MAX_SCORE,
+    maxScore: subjectMaxScore,
   };
   const { error } = await supabase.from('assessments').insert(toAssessmentRow(assessment));
   if (!error) _assessments.push(assessment);
@@ -1377,6 +1615,7 @@ async function ensureAssessment(subjectId, week) {
 export async function saveManualMarks({ centerId, subjectId, week, entries }) {
   await ensureDataLoaded();
   const assessmentId = await ensureAssessment(subjectId, week);
+  const subjectMaxScore = _subjects.find((s) => s.id === subjectId)?.maxScore ?? 20;
 
   const records = entries
     .filter(({ marksObtained }) => marksObtained !== '' && marksObtained != null)
@@ -1387,7 +1626,7 @@ export async function saveManualMarks({ centerId, subjectId, week, entries }) {
       subjectId,
       week,
       marksObtained: Number(marksObtained),
-      maxScore: MAX_SCORE,
+      maxScore: subjectMaxScore,
       enteredBy: 'manual-entry',
       enteredAt: new Date().toISOString().slice(0, 10),
     }));
@@ -1408,64 +1647,79 @@ export async function saveManualMarks({ centerId, subjectId, week, entries }) {
 // ---------------------------------------------------------------------------
 // Excel template / mock upload
 // ---------------------------------------------------------------------------
-export async function getExcelTemplate(categoryId) {
+export async function getExcelTemplate(categoryId, centerId) {
   await ensureDataLoaded();
   const subjects = _subjects.filter((s) => s.categoryId === categoryId);
-  const students = _students.filter((s) => s.categoryId === categoryId).slice(0, 3);
-  const header = ['Student ID', 'Student Name', ...subjects.map((s) => s.name)];
+  const students = _students
+    .filter((s) => s.categoryId === categoryId && (!centerId || s.centerId === centerId) && s.status !== 'withdrawn')
+    .slice(0, 3);
+  const header = ['Matricule', 'Student Name', ...subjects.map((s) => s.name)];
   const sampleRows = students.map((s) => [s.studentCode, s.name, ...subjects.map(() => '')]);
   return { header, sampleRows, subjects };
 }
 
-// Hardcoded example rows used to simulate parsing an uploaded Excel file —
-// deliberately includes a couple of invalid rows so the preview/confirm
-// screen has something real to flag. Still fully mock (no file is actually
-// parsed) — only confirmExcelUpload below writes anything real.
-export async function mockParseExcelUpload({ categoryId, centerId }) {
+// Reads an uploaded CSV (see src/data/csv.js — deliberately not the `xlsx`
+// npm package, which has unpatched high-severity advisories; this app's own
+// "Download template" only ever generates CSV anyway, so that's the only
+// format real parsing needs to round-trip). The header row's first column
+// accepts "Matricule" or "Student ID"; the rest are matched by subject name
+// (case-insensitive) against the subjects in this program. Returns the same
+// shape the old mocked version did, so confirmExcelUpload and the whole
+// preview/confirm UI don't need to change at all.
+export async function parseExcelUpload({ file, categoryId, centerId }) {
   await ensureDataLoaded();
   const subjects = _subjects.filter((s) => s.categoryId === categoryId);
-  const students = _students.filter((s) => s.categoryId === categoryId && s.centerId === centerId);
-  if (students.length === 0) {
-    return { subjects, rows: [] };
-  }
+  const text = await file.text();
+  const rows = parseCsv(text);
+  if (rows.length === 0) return { subjects, rows: [] };
 
-  const rows = students.slice(0, 6).map((student, idx) => {
-    const marks = subjects.map(() => Math.round(8 + Math.random() * 10));
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const idColIdx = header.findIndex((h) => h === 'matricule' || h === 'student id');
+  const subjectColIdx = subjects.map((s) => header.findIndex((h) => h === s.name.trim().toLowerCase()));
+
+  const activeStudents = _students.filter(
+    (s) => s.centerId === centerId && s.categoryId === categoryId && s.status !== 'withdrawn',
+  );
+
+  const parsedRows = rows.slice(1).map((cells, idx) => {
+    const rawId = idColIdx >= 0 ? (cells[idColIdx] ?? '').trim() : '';
+    const issues = [];
+    let resolvedStudentId = null;
+    let studentName = 'Unknown Row';
+
+    if (!rawId) {
+      issues.push('missing_matricule');
+    } else {
+      const student = activeStudents.find((s) => s.studentCode.toLowerCase() === rawId.toLowerCase());
+      if (!student) {
+        issues.push('unmatched_id');
+      } else {
+        resolvedStudentId = student.id;
+        studentName = student.name;
+      }
+    }
+
+    const marks = subjects.map((subject, subjIdx) => {
+      const colIdx = subjectColIdx[subjIdx];
+      const raw = colIdx >= 0 ? (cells[colIdx] ?? '').trim() : '';
+      if (raw === '') return '';
+      const num = Number(raw);
+      if (Number.isNaN(num)) return '';
+      if (num > subject.maxScore && !issues.includes('out_of_range')) issues.push('out_of_range');
+      return num;
+    });
+
     return {
       rowNumber: idx + 2,
-      studentId: student.studentCode,
-      resolvedStudentId: student.id,
-      studentName: student.name,
+      studentId: rawId || '—',
+      resolvedStudentId,
+      studentName,
       marks,
-      issues: [],
+      issues,
     };
   });
 
-  // Inject a couple of deliberately-bad rows so the preview/confirm screen
-  // has real problems to demonstrate: unmatched student ID, out-of-range mark.
-  if (rows.length > 0) {
-    rows.push({
-      rowNumber: rows.length + 2,
-      studentId: 'STU999',
-      resolvedStudentId: null,
-      studentName: 'Unknown Row',
-      marks: subjects.map(() => 12),
-      issues: ['unmatched_id'],
-    });
-  }
-  if (rows.length > 1) {
-    const badMarks = subjects.map((_, i) => (i === 0 ? 27 : 12));
-    rows.push({
-      rowNumber: rows.length + 2,
-      studentId: students[0].studentCode,
-      resolvedStudentId: students[0].id,
-      studentName: students[0].name,
-      marks: badMarks,
-      issues: ['out_of_range'],
-    });
-  }
-
-  return { subjects, rows };
+  return { subjects, rows: parsedRows };
 }
 
 export async function confirmExcelUpload({ centerId, week, subjects, rows }) {
@@ -1483,6 +1737,9 @@ export async function confirmExcelUpload({ centerId, week, subjects, rows }) {
       return;
     }
     subjects.forEach((subject, subjIdx) => {
+      // A blank cell means this student didn't sit this particular subject
+      // this week — skip it rather than saving a score of 0.
+      if (row.marks[subjIdx] === '' || row.marks[subjIdx] == null) return;
       records.push({
         id: `score-${row.resolvedStudentId}-${subject.id}-w${week}`,
         studentId: row.resolvedStudentId,
@@ -1490,7 +1747,7 @@ export async function confirmExcelUpload({ centerId, week, subjects, rows }) {
         subjectId: subject.id,
         week,
         marksObtained: Number(row.marks[subjIdx]),
-        maxScore: MAX_SCORE,
+        maxScore: subject.maxScore,
         enteredBy: 'excel-upload',
         enteredAt: new Date().toISOString().slice(0, 10),
       });
@@ -1564,8 +1821,8 @@ export async function getSharedStudentView(studentId) {
         week,
         date,
         marksObtained: score ? score.marksObtained : null,
-        maxScore: MAX_SCORE,
-        pct: score ? (score.marksObtained / MAX_SCORE) * 100 : null,
+        maxScore: score ? score.maxScore : subject.maxScore,
+        pct: score ? (score.marksObtained / score.maxScore) * 100 : null,
       };
     });
     const narrative = computeTrendNarrative(history);

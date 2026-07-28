@@ -246,6 +246,15 @@ table.data-table th, table.data-table td {
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
+table.data-table td select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  min-height: 32px;
+}
 table.data-table th {
   background: var(--bg);
   font-size: 12px;
@@ -283,6 +292,7 @@ tr.row-ok { background: var(--status-improving-bg); }
 .badge-needs_attention { background: var(--status-attention-bg); color: var(--status-attention); }
 .badge-incomplete_data { background: var(--status-incomplete-bg); color: var(--status-incomplete); }
 .badge-neutral { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
+.badge-withdrawn { background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
 
 .notice-banner {
   display: flex;
@@ -681,6 +691,63 @@ tr.row-ok { background: var(--status-improving-bg); }
   margin-top: 40px;
   box-shadow: var(--shadow-md);
 }
+
+/* ---------------------------------------------------------------- confirm/alert dialog */
+@keyframes confirm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes confirm-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 21, 38, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 200;
+  animation: confirm-fade-in 0.15s ease-out;
+}
+.confirm-card {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 24px;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 12px 32px rgba(16, 24, 40, 0.18);
+  text-align: center;
+  animation: confirm-pop-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.confirm-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+}
+.confirm-icon-danger { background: var(--status-attention-bg); color: var(--status-attention); }
+.confirm-icon-info { background: var(--status-incomplete-bg); color: var(--status-incomplete); }
+.confirm-message {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  margin: 0 0 22px;
+}
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.confirm-actions .btn { flex: 1; }
+.btn-danger {
+  background: var(--status-attention);
+  border: 1px solid var(--status-attention);
+  color: #fff;
+}
+.btn-danger:hover { background: #b91c1c; border-color: #b91c1c; }
 
 /* ---------------------------------------------------------------- admin/mentor management */
 .manage-row-actions {

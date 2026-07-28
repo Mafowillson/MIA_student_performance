@@ -15,11 +15,25 @@ export default function HODDashboard() {
 
   if (loading) return <Loading />;
 
+  // No subject currently assigned (e.g. a Regional Coordinator hasn't
+  // assigned one yet, or reassigned it away) — getSubjectSummary returns
+  // null in that case rather than throwing.
+  if (!data) {
+    return (
+      <div className="stack">
+        <div className="notice-banner">
+          <Info size={16} strokeWidth={2} />
+          <span>{t('hodDash.noSubject')}</span>
+        </div>
+      </div>
+    );
+  }
+
   const trendHistory = data.weeklyAvg.map((w) => ({
     week: w.week,
     pct: w.avgPct,
     marksObtained: null,
-    maxScore: 20,
+    maxScore: data.subject?.maxScore,
   }));
 
   return (

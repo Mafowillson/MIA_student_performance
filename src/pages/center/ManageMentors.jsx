@@ -6,11 +6,13 @@ import { useMentorsByCenter } from '../../hooks';
 import * as api from '../../data/api';
 import Modal from '../../components/Modal';
 import Loading from '../../components/Loading';
+import { useConfirmDialog } from '../../components/ConfirmDialogProvider';
 
 const emptyForm = { name: '', email: '', password: '' };
 
 export default function ManageMentors() {
   const { t } = useLanguage();
+  const { confirm } = useConfirmDialog();
   const { actor } = useRole();
   const { data: mentors, loading, reload } = useMentorsByCenter(actor?.centerId);
 
@@ -57,7 +59,8 @@ export default function ManageMentors() {
       mentor.menteeCount > 0
         ? t('manageMentors.confirmDeleteWithMentees', { name: mentor.name, count: mentor.menteeCount })
         : t('manageAdmins.confirmDelete', { name: mentor.name });
-    if (!window.confirm(message)) return;
+    const ok = await confirm({ message });
+    if (!ok) return;
     await api.deleteMentor(mentor.id);
     reload();
   }

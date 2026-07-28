@@ -88,7 +88,7 @@ export default function ManualMarkEntry() {
         <div className="card">
           <div className="row-between">
             <h2 className="mt-0">{subject?.name} — {t('common.week')} {week}</h2>
-            <span className="muted small">{t('markEntry.maxScoreNote', { max: 20 })}</span>
+            <span className="muted small">{t('markEntry.maxScoreNote', { max: subject?.maxScore })}</span>
           </div>
           {rowsLoading ? (
             <Loading />
