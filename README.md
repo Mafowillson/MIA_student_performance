@@ -1,29 +1,25 @@
-# MIA — Model Initiative of Africa (Frontend Prototype)
+# MIA — Model Initiative of Africa
 
-A Vite + React frontend for MIA's public website, now backed end-to-end by a
-real Supabase project: Auth, plus every entity from the original mock dataset
-(regions, categories, subjects, centers, the five staff-role tables,
-students, assessments, scores, follow-up notes, outcomes) as real Postgres
-tables with row-level security. See "Authentication" and "Data layer" below.
-`src/data/mockData.js` still exists as the deterministic seed data (and the
-source of truth for `scripts/seed-full-data.mjs`), but the running app no
-longer reads from it directly except for a few fixed schedule constants
-(weeks, term, max score) that nothing in the UI edits.
+A Vite + React frontend for MIA's public website, backed end-to-end by a
+real Supabase project: Auth, plus every entity (regions, categories/programs,
+subjects, centers, the five staff-role tables, students, assessments,
+scores, follow-up notes, outcomes) as real Postgres tables with row-level
+security. See "Authentication" and "Data layer" below.
+
+**This is a live system now, not a demo dataset.** The database was wiped
+of all mock/seed content (see "Getting started with real data" below) —
+there is exactly one account in it, the National Supervisor, and every
+other region/center/program/subject/staff member/student gets created
+through the app itself from here on. `src/data/mockData.js` still exists
+(the seed script's source, kept for reference/local dev re-seeding) but the
+running app no longer reads from it except for a few fixed schedule
+constants (weeks, term, max score) that nothing in the UI edits yet.
 
 The **Student Performance Platform is one feature of the broader MIA site**,
 not the whole app: `/`, `/about`, `/programs`, and `/contact` are a public
 marketing site anyone can browse with no login; the platform (role login +
 dashboards) lives behind a "Platform Login" button in the header, at
 `/login` onward. More MIA functionality is expected to land here over time.
-
-The platform itself spans multiple regions (originally NW-only). North West
-and South West are fully populated with their own centers, students, and
-staff; Center and Littoral start out as registered-but-empty regions with no
-data or Regional Supervisor — a live demo of onboarding a brand-new region
-rather than a hardcoded empty state. Both the National Supervisor (regions)
-and each Regional Supervisor (centers within their own region) can fully
-create/edit/delete these as the program grows — see "Regions & Centers"
-below.
 
 ## Running it
 
@@ -34,18 +30,44 @@ npm run dev
 
 Open the printed local URL and you'll land on the **public site** —
 Home / About / Programs / Contact, with a "Platform Login" button in the
-header. Click it (or go to `/login`) to sign in with one of the mock
-accounts and reach that person's role-scoped dashboard, or click "Show demo
-accounts" to see (and one-click sign in as) every mock account grouped by
-role. Every demo account shares the password `mia2026`. Use "Log out" in the
-dashboard header to return to `/login` (fast re-entry for switching between
-demo roles); clicking the MIA logo/name from inside the platform takes you
-back out to the public site at `/`.
+header. Click it (or go to `/login`) to sign in — there's no demo-accounts
+picker anymore (removed along with the mock data it depended on); sign in
+with a real account's email/password. Use "Log out" in the dashboard header
+to return to `/login`; clicking the MIA logo/name from inside the platform
+takes you back out to the public site at `/`.
 
-There's also a "Shared Student View (no login)" picker on the login page —
-this simulates the read-only link a student/parent would receive over
-WhatsApp (`/share/:studentId`), with no navigation chrome and no
-authentication (students never get accounts, per the build brief).
+`/share/:studentId` (the read-only, no-login WhatsApp-style report a
+mentor sends a parent) is still a real feature, generated from inside the
+platform via each mentee's "Copy share link" — but the login page no longer
+has a public "browse all students" picker for trying it out anonymously;
+that discovery UI was removed on request (a public list of every student's
+name shouldn't be one click away from the login screen).
+
+## Getting started with real data
+
+The database starts with **one row**: the National Supervisor. Bootstrap
+everything else from there, top-down through the role hierarchy — each
+role creates the next:
+
+1. **National Supervisor** → *Manage Regions*: create your real region(s).
+2. **Regional Supervisor** (created by the National Supervisor via *Manage
+   Regional Supervisors* — a real account, real email/password) → *Manage
+   Programs* (real programs, e.g. Engineering/Medicine) and *Manage
+   Centers* for their region, then *Manage Admins* to create real Regional
+   Coordinators and Center Coordinators.
+3. **Regional Coordinator** → *Manage Subjects*: the real subjects for
+   their program, each with its own max score.
+4. **Center Coordinator** → *Manage Mentors* (real mentor accounts), then
+   *Enroll Student* for each real student (auto-generates their matricule),
+   then *Manual Mark Entry* or *Excel Upload* (real CSV, matched by
+   matricule) for weekly marks.
+5. **HOD** accounts are created by the Regional Supervisor via *Manage
+   Admins* and assigned to a subject — nothing else for them to set up.
+
+One thing that *isn't* self-service yet: the academic calendar
+(`WEEKS`/`TERM`/`CURRENT_WEEK` in `mockData.js`) is still a fixed constant,
+not a per-tenant setting — fine for continuing the current term, but
+rolling into a new term/year isn't a UI action yet.
 
 ## What's here
 
@@ -145,12 +167,14 @@ Sign-in is real now — backed by Supabase Auth, not the mock `USERS` table.
   (needs `vite-node` since `mockData.js` uses extensionless imports that
   plain Node ESM can't resolve — `npm install --no-save vite-node` first).
 
-**What's still mock**: only the `USERS` table (the fixed-password
-demo-accounts shortcut list on the login screen — `getDemoAccounts()`).
-Accounts created through the Manage screens are real now too — see "Staff
-account provisioning" below. Every other entity — regions, categories,
+`mockData.js`'s `USERS` table and `scripts/seed-auth-users.mjs` are now only
+useful for **local re-seeding** (e.g. spinning up a fresh Supabase project
+for development) — the login screen no longer has a demo-accounts picker
+(`getDemoAccounts()` was removed along with it), since the live database has
+no mock accounts to show. Every entity — regions, categories/programs,
 subjects, centers, the five staff-role tables, students, assessments,
-scores, follow-up notes, outcomes — is real Postgres; see "Data layer"
+scores, follow-up notes, outcomes — is real Postgres, created through the
+app itself; see "Getting started with real data" above and "Data layer"
 below.
 
 Row-Level Security is now the real access-control boundary (see "Data layer"
@@ -197,10 +221,10 @@ Coordinator scoped to their own center for Mentors) before touching
 gets a `403 forbidden` when it tries to touch a Center Coordinator outside
 their own region, even calling the function's HTTP endpoint directly.
 
-`src/data/api.js` also now caches the `profiles` table itself (`_profiles`)
-and reads every admin/mentor table's email from it instead of the mock
-`_users` array — `_users` only backs `getDemoAccounts()`'s fixed-password
-shortcut list now, nothing else.
+`src/data/api.js` also caches the `profiles` table itself (`_profiles`) and
+reads every admin/mentor table's email from it — the mock `_users` array
+(and `getDemoAccounts()`) were removed entirely once the login screen's
+demo-accounts picker went away.
 
 ### Admin & mentor CRUD
 
@@ -403,12 +427,14 @@ Every component/hook still goes through **one data-access layer**
   hand-crafted REST call with a valid session token can't see past it.
   Writes are scoped the same way a level up (e.g. only the acting Center
   Coordinator's own students can have scores written for them). The one
-  deliberate carve-out: `/share/:studentId` and the Login page's "preview a
-  shared student" dropdown work with **no session at all** by design, so
-  they go through two `SECURITY DEFINER` RPC functions
-  (`get_shared_student_bundle`, `list_students_for_share`) that bypass RLS
-  internally but only ever return the one requested student (or a minimal
-  name-only roster) — never opened up as a blanket anonymous SELECT policy.
+  deliberate carve-out: `/share/:studentId` works with **no session at
+  all** by design, so it goes through a `SECURITY DEFINER` RPC function
+  (`get_shared_student_bundle`) that bypasses RLS internally but only ever
+  returns the one requested student — never opened up as a blanket
+  anonymous SELECT policy. (A second such function, `list_students_for_share`,
+  used to back an anonymous "browse all students" picker on the login
+  page; that picker was removed as a public-facing risk — the SQL function
+  itself is still in the database, unused, harmless to leave or drop.)
 - **Data loading** (`src/data/api.js`): `loadAllData()` fetches all 14
   tables in parallel into local arrays (`_regions`, `_students`, `_scores`,
   etc.) once per signed-in session — cached behind `ensureDataLoaded()`,

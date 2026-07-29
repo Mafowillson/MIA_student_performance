@@ -96,7 +96,7 @@ export const CENTERS = [
 // People: National Supervisor, Regional Supervisors, Regional Coordinators,
 // Center Coordinators, Mentors
 // ---------------------------------------------------------------------------
-export const NATIONAL_SUPERVISOR = { id: 'ns-1', name: 'Prisca Achale' };
+export const NATIONAL_SUPERVISOR = { id: 'ns-1', name: 'Emmanuel Daah' };
 
 // One per staffed region — Center and Littoral intentionally have none yet.
 export const REGIONAL_SUPERVISORS = [

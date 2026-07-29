@@ -4,10 +4,6 @@
 import { useAsync } from './useAsync';
 import * as api from '../data/api';
 
-export function useDemoAccounts() {
-  return useAsync(() => api.getDemoAccounts(), []);
-}
-
 // Regions & National Supervisor management (National Supervisor CRUDs
 // Regional Supervisor accounts; mutating calls go straight to api.js).
 export function useRegions() {
@@ -114,13 +110,6 @@ export function useStudents(filters = {}) {
     () => api.getStudents(filters),
     [filters.centerId, filters.categoryId, filters.mentorId],
   );
-}
-
-// Anonymous-safe minimal roster (id/name/studentCode only) for the pre-login
-// "preview a shared student page" dropdown — see getShareableStudents in
-// src/data/api.js for why this can't just be useStudents().
-export function useShareableStudents() {
-  return useAsync(() => api.getShareableStudents(), []);
 }
 
 export function useStudent(studentId) {

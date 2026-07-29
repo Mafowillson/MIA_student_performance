@@ -6,13 +6,7 @@
 // those arrays in sync after every mutation, so the at-risk analysis /
 // summary logic below (which was already written against plain arrays)
 // didn't need to change shape, just its data source.
-import {
-  NATIONAL_SUPERVISOR,
-  WEEKS,
-  CURRENT_WEEK,
-  USERS as USERS_SEED,
-  DEMO_PASSWORD,
-} from './mockData';
+import { NATIONAL_SUPERVISOR, WEEKS, CURRENT_WEEK } from './mockData';
 import { analyzeSubjectHistory, computeStudentStatus, computeTrendNarrative } from './atRisk';
 import { ROLES } from '../constants/roles';
 import { supabase } from './supabaseClient';
@@ -141,7 +135,6 @@ let _followUpNotes = [];
 let _outcomes = [];
 let _atRiskConfig = null;
 let _profiles = []; // real accounts — id/email/role/refId, see manageStaffAccount()
-let _users = USERS_SEED.map((u) => ({ ...u })); // still mock — only backs the demo-accounts list now
 
 async function loadAllData() {
   const [
@@ -345,20 +338,6 @@ export async function getCurrentSession() {
     role: profile.role,
     actor: { ...actor, email: profile.email },
   };
-}
-
-// Used only by the login screen's "demo accounts" helper list — never
-// exposes passwords. Still mock — see README "Authentication".
-export async function getDemoAccounts() {
-  return delay({
-    password: DEMO_PASSWORD,
-    accounts: _users.map((u) => ({
-      email: u.email,
-      name: u.name,
-      role: u.role,
-      contextLabel: u.contextLabel,
-    })),
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1218,17 +1197,6 @@ export async function updateStudentStatus(id, status) {
   if (error) return { success: false, error: 'save_failed' };
   student.status = status;
   return { success: true };
-}
-
-// Minimal, anonymous-safe roster (id/name/studentCode only) — backs the
-// pre-login "preview a shared student page" dropdown, which by design works
-// with no signed-in session. See get_shared_student_bundle in
-// supabase/002_full_schema.sql for why this needs its own RPC rather than
-// just reading the (RLS-scoped) `students` table directly.
-export async function getShareableStudents() {
-  const { data, error } = await supabase.rpc('list_students_for_share');
-  if (error) return [];
-  return data ?? [];
 }
 
 // ---------------------------------------------------------------------------
