@@ -103,7 +103,7 @@ export default function AppShell() {
 
           <div className="role-pill">
             {t('common.viewing')}: {role ? t(`roles.${ROLE_LABEL_KEY[role]}`) : ''}
-            {actor?.name ? ` — ${actor.name}` : ''}
+            {actor?.name ? `, ${actor.name}` : ''}
             <button type="button" onClick={handleLogout}>
               {t('nav.logout')}
             </button>

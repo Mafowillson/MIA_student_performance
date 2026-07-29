@@ -58,7 +58,7 @@ export default function ManualMarkEntry() {
         <div className="field">
           <label>{t('common.category')}</label>
           <select value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setSubjectId(''); }}>
-            <option value="">—</option>
+            <option value="">Select…</option>
             {(categories || []).map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -67,7 +67,7 @@ export default function ManualMarkEntry() {
         <div className="field">
           <label>{t('markEntry.chooseSubject')}</label>
           <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} disabled={!categoryId}>
-            <option value="">—</option>
+            <option value="">Select…</option>
             {(subjects || []).map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
@@ -76,7 +76,7 @@ export default function ManualMarkEntry() {
         <div className="field">
           <label>{t('markEntry.chooseWeek')}</label>
           <select value={week} onChange={(e) => setWeek(e.target.value)}>
-            <option value="">—</option>
+            <option value="">Select…</option>
             {(weeks || []).map((w) => (
               <option key={w} value={w}>{t('common.week')} {w}</option>
             ))}
@@ -87,7 +87,7 @@ export default function ManualMarkEntry() {
       {canShowTable && (
         <div className="card">
           <div className="row-between">
-            <h2 className="mt-0">{subject?.name} — {t('common.week')} {week}</h2>
+            <h2 className="mt-0">{subject?.name} ({t('common.week')} {week})</h2>
             <span className="muted small">{t('markEntry.maxScoreNote', { max: subject?.maxScore })}</span>
           </div>
           {rowsLoading ? (

@@ -1312,9 +1312,9 @@ export async function getStudentsWithStatus(filters = {}) {
       return {
         ...student,
         status,
-        mentorName: mentor?.name ?? '—',
-        centerName: center?.name ?? '—',
-        categoryName: category?.name ?? '—',
+        mentorName: mentor?.name ?? '-',
+        centerName: center?.name ?? '-',
+        categoryName: category?.name ?? '-',
       };
     }),
   );
@@ -1679,7 +1679,7 @@ export async function parseExcelUpload({ file, categoryId, centerId }) {
 
     return {
       rowNumber: idx + 2,
-      studentId: rawId || '—',
+      studentId: rawId || '-',
       resolvedStudentId,
       studentName,
       marks,

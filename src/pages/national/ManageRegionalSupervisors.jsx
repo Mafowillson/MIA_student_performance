@@ -165,7 +165,7 @@ export default function ManageRegionalSupervisors() {
                 value={form.regionId}
                 onChange={(e) => setForm((f) => ({ ...f, regionId: e.target.value }))}
               >
-                <option value="">—</option>
+                <option value="">Select…</option>
                 {(regions || []).map((r) => (
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}

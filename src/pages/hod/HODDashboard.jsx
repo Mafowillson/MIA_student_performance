@@ -70,7 +70,7 @@ export default function HODDashboard() {
                 <tr key={row.center.id}>
                   <td>{row.center.name}</td>
                   <td>{row.studentCount}</td>
-                  <td>{row.avgPct != null ? `${Math.round(row.avgPct)}%` : '—'}</td>
+                  <td>{row.avgPct != null ? `${Math.round(row.avgPct)}%` : '-'}</td>
                 </tr>
               ))}
             </tbody>

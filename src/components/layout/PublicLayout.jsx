@@ -57,7 +57,7 @@ export default function PublicLayout() {
           <div className="public-footer-brand">
             <img src="/MIA_logo.jpg" alt="MIA" className="app-logo" />
             <div>
-              <strong>{t('appName')} — {t('site.orgName')}</strong>
+              <strong>{t('appName')}: {t('site.orgName')}</strong>
               <p className="muted small mt-0">{t('site.footerTagline')}</p>
             </div>
           </div>

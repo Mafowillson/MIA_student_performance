@@ -242,7 +242,7 @@ export default function CenterCoordinatorDashboard() {
                 value={enrollForm.categoryId}
                 onChange={(e) => setEnrollForm((f) => ({ ...f, categoryId: e.target.value }))}
               >
-                <option value="">—</option>
+                <option value="">Select…</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}

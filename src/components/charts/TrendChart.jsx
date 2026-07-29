@@ -39,7 +39,7 @@ export default function TrendChart({ history, title, height = 220 }) {
                 <tr key={h.week}>
                   <td>{h.week}</td>
                   <td>{h.marksObtained != null ? `${h.marksObtained}/${h.maxScore}` : t('common.noData')}</td>
-                  <td>{h.pct != null ? `${Math.round(h.pct)}%` : '—'}</td>
+                  <td>{h.pct != null ? `${Math.round(h.pct)}%` : '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -52,7 +52,7 @@ export default function TrendChart({ history, title, height = 220 }) {
             <XAxis dataKey="week" tick={{ fontSize: 11 }} />
             <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
             <ReferenceLine y={50} stroke="var(--status-incomplete)" strokeDasharray="4 4" />
-            <Tooltip formatter={(value) => (value != null ? `${value}%` : '—')} />
+            <Tooltip formatter={(value) => (value != null ? `${value}%` : '-')} />
             <Line
               type="monotone"
               dataKey="pct"

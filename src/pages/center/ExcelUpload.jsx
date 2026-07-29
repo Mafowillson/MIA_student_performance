@@ -69,7 +69,7 @@ export default function ExcelUpload() {
         <p className="muted small">{t('upload.step1desc')}</p>
         <div className="row">
           <select value={templateCategoryId} onChange={(e) => setTemplateCategoryId(e.target.value)}>
-            <option value="">—</option>
+            <option value="">Select…</option>
             {(categories || []).map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -87,7 +87,7 @@ export default function ExcelUpload() {
           <div className="field">
             <label>{t('common.category')}</label>
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">—</option>
+              <option value="">Select…</option>
               {(categories || []).map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -96,7 +96,7 @@ export default function ExcelUpload() {
           <div className="field">
             <label>{t('markEntry.chooseWeek')}</label>
             <select value={week} onChange={(e) => setWeek(e.target.value)}>
-              <option value="">—</option>
+              <option value="">Select…</option>
               {(weeks || []).map((w) => (
                 <option key={w} value={w}>{t('common.week')} {w}</option>
               ))}
@@ -154,7 +154,7 @@ export default function ExcelUpload() {
                     {row.marks.map((m, i) => (
                       <td key={i}>{m}</td>
                     ))}
-                    <td>{row.issues.map((issue) => t(`upload.issue_${issue}`)).join('; ') || '—'}</td>
+                    <td>{row.issues.map((issue) => t(`upload.issue_${issue}`)).join('; ') || '-'}</td>
                   </tr>
                 ))}
               </tbody>

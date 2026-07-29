@@ -16,8 +16,8 @@ export default function MentorDashboard() {
 
   if (loading || !centers || !categories) return <Loading />;
 
-  const centerName = (id) => centers.find((c) => c.id === id)?.name ?? '—';
-  const categoryName = (id) => categories.find((c) => c.id === id)?.name ?? '—';
+  const centerName = (id) => centers.find((c) => c.id === id)?.name ?? '-';
+  const categoryName = (id) => categories.find((c) => c.id === id)?.name ?? '-';
 
   return (
     <div className="stack">

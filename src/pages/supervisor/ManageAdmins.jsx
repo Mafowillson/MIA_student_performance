@@ -150,7 +150,7 @@ export default function ManageAdmins() {
                   <tr key={admin.id}>
                     <td>{admin.name}</td>
                     <td>{admin.email}</td>
-                    <td>{admin.contextLabel || '—'}</td>
+                    <td>{admin.contextLabel || '-'}</td>
                     <td>
                       <div className="manage-row-actions">
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(admin)}>
@@ -218,7 +218,7 @@ export default function ManageAdmins() {
                   value={form.categoryId}
                   onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
                 >
-                  <option value="">—</option>
+                  <option value="">Select…</option>
                   {(categories || []).map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -234,7 +234,7 @@ export default function ManageAdmins() {
                   value={form.subjectId}
                   onChange={(e) => setForm((f) => ({ ...f, subjectId: e.target.value }))}
                 >
-                  <option value="">—</option>
+                  <option value="">Select…</option>
                   {(subjects || []).map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name} ({categories?.find((c) => c.id === s.categoryId)?.name})
@@ -257,7 +257,7 @@ export default function ManageAdmins() {
                   value={form.centerId}
                   onChange={(e) => setForm((f) => ({ ...f, centerId: e.target.value }))}
                 >
-                  <option value="">—</option>
+                  <option value="">Select…</option>
                   {(centers || []).map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
