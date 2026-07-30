@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useRole, ROLES } from '../context/RoleContext';
 import * as api from '../data/api';
@@ -22,6 +22,7 @@ export default function Login() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -74,12 +75,23 @@ export default function Login() {
             </div>
             <div className="field">
               <label>{t('login.password')}</label>
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="password-field">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="password-field-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
+                  tabIndex={-1}
+                >
+                  {!showPassword ? <EyeOff size={16} strokeWidth={2} /> : <Eye size={16} strokeWidth={2} />}
+                </button>
+              </div>
             </div>
             {error && (
               <div className="alert-banner alert-banner-danger">

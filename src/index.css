@@ -215,6 +215,7 @@ button, input, select, textarea {
 .field input[type="text"],
 .field input[type="number"],
 .field input[type="file"],
+.field input[type="password"],
 .field textarea {
   padding: 8px 10px;
   border: 1px solid var(--border);
@@ -225,6 +226,28 @@ button, input, select, textarea {
 }
 .field textarea { min-height: 80px; resize: vertical; }
 .field input[type="number"] { width: 100%; }
+
+.password-field { position: relative; display: flex; }
+.password-field input[type="password"],
+.password-field input[type="text"] { width: 100%; padding-right: 38px; }
+.password-field-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.password-field-toggle:hover { color: var(--text); background: var(--surface-hover, rgba(0, 0, 0, 0.05)); }
 
 /* ---------------------------------------------------------------- tables */
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
