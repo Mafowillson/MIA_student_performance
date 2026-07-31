@@ -26,6 +26,7 @@ const NAV_BY_ROLE = {
     { to: '/center', key: 'dashboard' },
     { to: '/center/mark-entry', key: 'markEntry' },
     { to: '/center/upload', key: 'excelUpload' },
+    { to: '/center/bulk-enroll', key: 'bulkEnroll' },
     { to: '/center/mentors', key: 'manageMentors' },
   ],
   [ROLES.MENTOR]: [{ to: '/mentor', key: 'mentees' }],

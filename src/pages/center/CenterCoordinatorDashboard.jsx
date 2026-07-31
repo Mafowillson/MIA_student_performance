@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Users, AlertTriangle, FileWarning, Pencil, Upload, UserPlus, UserX, UserCheck } from 'lucide-react';
+import { Building2, Users, AlertTriangle, FileWarning, Pencil, Upload, UserPlus, UserX, UserCheck, FileSpreadsheet } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useRole } from '../../context/RoleContext';
 import { useCenter, useCenterRoster, useMarkEntryStatus, useCategories, useMentorsByCenter } from '../../hooks';
@@ -125,6 +125,10 @@ export default function CenterCoordinatorDashboard() {
           <button type="button" className="btn btn-secondary" onClick={() => navigate('/center/upload')}>
             <Upload size={16} strokeWidth={2} />
             {t('center.excelUpload')}
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => navigate('/center/bulk-enroll')}>
+            <FileSpreadsheet size={16} strokeWidth={2} />
+            {t('center.bulkEnroll')}
           </button>
         </div>
       </div>

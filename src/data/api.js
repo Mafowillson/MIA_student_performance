@@ -1626,19 +1626,31 @@ export async function getExcelTemplate(categoryId, centerId) {
   return { header, sampleRows, subjects };
 }
 
-// Reads an uploaded CSV (see src/data/csv.js — deliberately not the `xlsx`
-// npm package, which has unpatched high-severity advisories; this app's own
-// "Download template" only ever generates CSV anyway, so that's the only
-// format real parsing needs to round-trip). The header row's first column
-// accepts "Matricule" or "Student ID"; the rest are matched by subject name
-// (case-insensitive) against the subjects in this program. Returns the same
-// shape the old mocked version did, so confirmExcelUpload and the whole
-// preview/confirm UI don't need to change at all.
+// Reads an uploaded .xlsx (via exceljs) or .csv (via src/data/csv.js) file
+// and returns the same "array of string-cell rows" shape either way, so
+// every parse* function below can stay format-agnostic. Uses the file
+// extension rather than file.type since browsers don't reliably set a MIME
+// type for .xlsx from all OSes.
+async function readRowsFromFile(file) {
+  if (file.name.toLowerCase().endsWith('.xlsx')) {
+    // Dynamically imported so the exceljs bundle (~900kb) only loads for
+    // users who actually upload an .xlsx file, instead of bloating the main
+    // bundle every role downloads on login.
+    const { parseXlsx } = await import('./xlsx');
+    return parseXlsx(await file.arrayBuffer());
+  }
+  return parseCsv(await file.text());
+}
+
+// The header row's first column accepts "Matricule" or "Student ID"; the
+// rest are matched by subject name (case-insensitive) against the subjects
+// in this program. Returns the same shape the old mocked version did, so
+// confirmExcelUpload and the whole preview/confirm UI don't need to change
+// at all.
 export async function parseExcelUpload({ file, categoryId, centerId }) {
   await ensureDataLoaded();
   const subjects = _subjects.filter((s) => s.categoryId === categoryId);
-  const text = await file.text();
-  const rows = parseCsv(text);
+  const rows = await readRowsFromFile(file);
   if (rows.length === 0) return { subjects, rows: [] };
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
@@ -1688,6 +1700,62 @@ export async function parseExcelUpload({ file, categoryId, centerId }) {
   });
 
   return { subjects, rows: parsedRows };
+}
+
+// ---------------------------------------------------------------------------
+// Bulk student enrollment (CSV upload) — one program per file, mirroring the
+// marks-upload flow above. Only Name is accepted; mentor assignment stays a
+// per-student action from the roster afterward (existing mentor dropdown).
+// ---------------------------------------------------------------------------
+export async function getBulkEnrollTemplate() {
+  await ensureDataLoaded();
+  const header = ['Name'];
+  const sampleRows = [['e.g. Tanyi Divine'], ['e.g. Mbah Grace'], ['e.g. Njie Paul']];
+  return { header, sampleRows };
+}
+
+// Reads an uploaded .xlsx or .csv file of student names. One row per student
+// to enroll; the program and center come from the UI (selected once for the
+// whole file), not from file columns.
+export async function parseBulkEnroll({ file }) {
+  const rows = await readRowsFromFile(file);
+  if (rows.length === 0) return { rows: [] };
+
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const nameColIdx = header.findIndex((h) => h === 'name');
+
+  const parsedRows = rows.slice(1).map((cells, idx) => {
+    const name = (cells[nameColIdx >= 0 ? nameColIdx : 0] ?? '').trim();
+    const issues = [];
+    if (!name) issues.push('missing_name');
+    return { rowNumber: idx + 2, name, issues };
+  });
+
+  return { rows: parsedRows };
+}
+
+// Creates one student per valid row, sequentially (not in parallel) — each
+// createStudent call updates the in-memory _students cache before the next
+// one runs, which is what lets generateMatricule hand out consecutive
+// numbers within the same batch instead of colliding on the same one.
+export async function confirmBulkEnroll({ centerId, categoryId, rows }) {
+  let savedCount = 0;
+  let skippedCount = 0;
+  const created = [];
+  for (const row of rows) {
+    if (row.issues && row.issues.length > 0) {
+      skippedCount += 1;
+      continue;
+    }
+    const result = await createStudent({ name: row.name, categoryId, mentorId: null, centerId });
+    if (!result.success) {
+      skippedCount += 1;
+      continue;
+    }
+    savedCount += 1;
+    created.push({ name: row.name, studentCode: result.studentCode });
+  }
+  return { success: true, savedCount, skippedCount, created };
 }
 
 export async function confirmExcelUpload({ centerId, week, subjects, rows }) {

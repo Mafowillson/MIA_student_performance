@@ -27,6 +27,7 @@ import HODDashboard from './pages/hod/HODDashboard';
 import CenterCoordinatorDashboard from './pages/center/CenterCoordinatorDashboard';
 import ManualMarkEntry from './pages/center/ManualMarkEntry';
 import ExcelUpload from './pages/center/ExcelUpload';
+import BulkEnrollUpload from './pages/center/BulkEnrollUpload';
 import ManageMentors from './pages/center/ManageMentors';
 import MentorDashboard from './pages/mentor/MentorDashboard';
 import MenteeDetail from './pages/mentor/MenteeDetail';
@@ -208,6 +209,14 @@ export default function App() {
                 element={
                   <ProtectedRoute allow={[ROLES.CENTER_COORDINATOR]}>
                     <ExcelUpload />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/center/bulk-enroll"
+                element={
+                  <ProtectedRoute allow={[ROLES.CENTER_COORDINATOR]}>
+                    <BulkEnrollUpload />
                   </ProtectedRoute>
                 }
               />

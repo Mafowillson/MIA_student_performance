@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useRole } from '../../context/RoleContext';
-import { useCategories, useWeekOptions } from '../../hooks';
+import { useCategories } from '../../hooks';
 import * as api from '../../data/api';
-import Loading from '../../components/Loading';
 
 function downloadCsv(filename, header, rows) {
   const csv = [header, ...rows].map((r) => r.join(',')).join('\n');
@@ -16,27 +15,21 @@ function downloadCsv(filename, header, rows) {
   URL.revokeObjectURL(url);
 }
 
-export default function ExcelUpload() {
+export default function BulkEnrollUpload() {
   const { t } = useLanguage();
   const { actor } = useRole();
-  const { data: categories } = useCategories();
-  const { data: weeks } = useWeekOptions();
-
-  const [templateCategoryId, setTemplateCategoryId] = useState('');
+  const { data: categories } = useCategories({ regionId: actor?.regionId });
 
   const [categoryId, setCategoryId] = useState('');
-  const [week, setWeek] = useState('');
   const [file, setFile] = useState(null);
   const [parsing, setParsing] = useState(false);
-  const [preview, setPreview] = useState(null); // { subjects, rows }
+  const [preview, setPreview] = useState(null); // { rows }
   const [saveResult, setSaveResult] = useState(null);
   const fileInputRef = useRef(null);
 
   async function handleDownloadTemplate() {
-    if (!templateCategoryId) return;
-    const { header, sampleRows } = await api.getExcelTemplate(templateCategoryId, actor.centerId);
-    const category = categories.find((c) => c.id === templateCategoryId);
-    downloadCsv(`MIA_${category.name.replace(/\s+/g, '_')}_template.csv`, header, sampleRows);
+    const { header, sampleRows } = await api.getBulkEnrollTemplate();
+    downloadCsv('MIA_bulk_enroll_template.csv', header, sampleRows);
   }
 
   function handleFileChosen(e) {
@@ -46,16 +39,15 @@ export default function ExcelUpload() {
   async function handleParse() {
     setParsing(true);
     setSaveResult(null);
-    const result = await api.parseExcelUpload({ file, categoryId, centerId: actor.centerId });
+    const result = await api.parseBulkEnroll({ file });
     setPreview(result);
     setParsing(false);
   }
 
   async function handleConfirm() {
-    const result = await api.confirmExcelUpload({
+    const result = await api.confirmBulkEnroll({
       centerId: actor.centerId,
-      week: Number(week),
-      subjects: preview.subjects,
+      categoryId,
       rows: preview.rows,
     });
     setSaveResult(result);
@@ -63,36 +55,35 @@ export default function ExcelUpload() {
 
   function handleCancel() {
     setCategoryId('');
-    setWeek('');
     setFile(null);
     setPreview(null);
     setSaveResult(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
+  function handleDownloadResults() {
+    downloadCsv(
+      'MIA_bulk_enroll_results.csv',
+      ['Name', 'Matricule'],
+      saveResult.created.map((s) => [s.name, s.studentCode]),
+    );
+  }
+
   return (
     <div className="stack">
-      <h1>{t('upload.title')}</h1>
+      <h1>{t('bulkEnroll.title')}</h1>
 
       <div className="card">
-        <h2 className="mt-0">{t('upload.step1')}</h2>
-        <p className="muted small">{t('upload.step1desc')}</p>
-        <div className="row">
-          <select value={templateCategoryId} onChange={(e) => setTemplateCategoryId(e.target.value)}>
-            <option value="">Select…</option>
-            {(categories || []).map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <button type="button" className="btn btn-secondary" disabled={!templateCategoryId} onClick={handleDownloadTemplate}>
-            {t('upload.downloadTemplate', { category: categories?.find((c) => c.id === templateCategoryId)?.name ?? '' })}
-          </button>
-        </div>
+        <h2 className="mt-0">{t('bulkEnroll.step1')}</h2>
+        <p className="muted small">{t('bulkEnroll.step1desc')}</p>
+        <button type="button" className="btn btn-secondary" onClick={handleDownloadTemplate}>
+          {t('bulkEnroll.downloadTemplate')}
+        </button>
       </div>
 
       <div className="card">
-        <h2 className="mt-0">{t('upload.step2')}</h2>
-        <p className="muted small">{t('upload.step2desc')}</p>
+        <h2 className="mt-0">{t('bulkEnroll.step2')}</h2>
+        <p className="muted small">{t('bulkEnroll.step2desc')}</p>
         <div className="row">
           <div className="field">
             <label>{t('common.category')}</label>
@@ -104,15 +95,6 @@ export default function ExcelUpload() {
             </select>
           </div>
           <div className="field">
-            <label>{t('markEntry.chooseWeek')}</label>
-            <select value={week} onChange={(e) => setWeek(e.target.value)}>
-              <option value="">Select…</option>
-              {(weeks || []).map((w) => (
-                <option key={w} value={w}>{t('common.week')} {w}</option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
             <label>{t('upload.chooseFile')}</label>
             <input ref={fileInputRef} type="file" accept=".xlsx,.csv" onChange={handleFileChosen} />
           </div>
@@ -120,7 +102,7 @@ export default function ExcelUpload() {
         <button
           type="button"
           className="btn mt-1"
-          disabled={!categoryId || !week || !file || parsing}
+          disabled={!categoryId || !file || parsing}
           onClick={handleParse}
         >
           {parsing ? t('common.loading') : t('upload.parseFile')}
@@ -143,11 +125,7 @@ export default function ExcelUpload() {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Student ID</th>
-                  <th>{t('common.student')}</th>
-                  {preview.subjects.map((s) => (
-                    <th key={s.id}>{s.name}</th>
-                  ))}
+                  <th>{t('common.name')}</th>
                   <th>Issue</th>
                 </tr>
               </thead>
@@ -155,12 +133,8 @@ export default function ExcelUpload() {
                 {preview.rows.map((row) => (
                   <tr key={row.rowNumber} className={row.issues.length ? 'row-issue' : 'row-ok'}>
                     <td>{row.rowNumber}</td>
-                    <td>{row.studentId}</td>
-                    <td>{row.studentName}</td>
-                    {row.marks.map((m, i) => (
-                      <td key={i}>{m}</td>
-                    ))}
-                    <td>{row.issues.map((issue) => t(`upload.issue_${issue}`)).join('; ') || '-'}</td>
+                    <td>{row.name || '-'}</td>
+                    <td>{row.issues.map((issue) => t(`bulkEnroll.issue_${issue}`)).join('; ') || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -168,16 +142,23 @@ export default function ExcelUpload() {
           </div>
           <div className="row mt-2">
             <button type="button" className="btn" onClick={handleConfirm} disabled={!!saveResult}>
-              {t('upload.confirmSave')}
+              {t('bulkEnroll.confirmSave')}
             </button>
             <button type="button" className="btn btn-secondary" onClick={handleCancel}>
               {t('common.cancel')}
             </button>
           </div>
           {saveResult && (
-            <p className="badge badge-improving mt-1">
-              {t('upload.uploadSuccess', { count: saveResult.savedCount, skipped: saveResult.skippedCount })}
-            </p>
+            <div className="stack mt-1">
+              <p className="badge badge-improving">
+                {t('bulkEnroll.uploadSuccess', { count: saveResult.savedCount, skipped: saveResult.skippedCount })}
+              </p>
+              {saveResult.created.length > 0 && (
+                <button type="button" className="btn btn-secondary" onClick={handleDownloadResults}>
+                  {t('bulkEnroll.downloadResults')}
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}
